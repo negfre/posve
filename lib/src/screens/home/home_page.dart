@@ -101,7 +101,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _navigateTo(BuildContext context, Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page))
+        .then((_) {
+      // Recargar métricas cuando se regrese de páginas que pueden haber modificado ventas
+      if (page.runtimeType.toString().contains('Sales') || 
+          page.runtimeType.toString().contains('Purchase')) {
+        _loadMetrics();
+      }
+    });
   }
 
   @override

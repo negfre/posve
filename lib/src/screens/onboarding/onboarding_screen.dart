@@ -40,6 +40,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _shouldCreateTestProducts = true;
 
   @override
+  void initState() {
+    super.initState();
+    
+    // Añadir listener para validación en tiempo real de la tasa de cambio
+    _exchangeRateController.addListener(() {
+      setState(() {}); // Actualizar UI para validación
+    });
+  }
+
+  @override
   void dispose() {
     _ivaController.dispose();
     _exchangeRateController.dispose();
@@ -47,6 +57,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _finishOnboarding() async {
+    // Mostrar indicador de carga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text('Configurando tu aplicación...'),
+            ],
+          ),
+        );
+      },
+    );
+
     try {
       print("Iniciando proceso de finalización de onboarding...");
       
@@ -59,23 +87,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       });
       
       if (_selectedPaymentMethods.isEmpty) {
+        Navigator.of(context).pop(); // Cerrar diálogo de carga
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor seleccione al menos una forma de pago')),
+          const SnackBar(
+            content: Text('Por favor seleccione al menos una forma de pago'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
 
       if (_exchangeRateController.text.isEmpty) {
+        Navigator.of(context).pop(); // Cerrar diálogo de carga
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor ingrese una tasa de cambio válida')),
+          const SnackBar(
+            content: Text('Por favor ingrese una tasa de cambio válida'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
 
       _exchangeRate = double.tryParse(_exchangeRateController.text.replaceAll(',', '.'));
       if (_exchangeRate == null || _exchangeRate! <= 0) {
+        Navigator.of(context).pop(); // Cerrar diálogo de carga
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor ingrese una tasa de cambio válida')),
+          const SnackBar(
+            content: Text('Por favor ingrese una tasa de cambio válida'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
@@ -107,6 +147,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       if (!mounted) return;
       
+      // Cerrar diálogo de carga
+      Navigator.of(context).pop();
+      
+      // Mostrar mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              const Text('¡Configuración completada exitosamente!'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      
       print("Navegando a la pantalla principal...");
       Navigator.of(context).pushReplacementNamed('/home');
       
@@ -114,8 +172,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       print("Error durante el proceso de onboarding: $e");
       if (!mounted) return;
       
+      // Cerrar diálogo de carga
+      Navigator.of(context).pop();
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al finalizar la configuración: $e')),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Error al finalizar la configuración: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
       );
     }
   }
@@ -450,135 +521,514 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        title: const Text('Configuración Inicial'),
+        title: const Text(
+          'Configuración Inicial',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Theme.of(context).primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: Stepper(
-        currentStep: _currentStep,
-        onStepContinue: () {
-          if (_currentStep < 3) {
-            setState(() => _currentStep++);
-          } else {
-            _finishOnboarding();
-          }
-        },
-        onStepCancel: () {
-          if (_currentStep > 0) {
-            setState(() => _currentStep--);
-          }
-        },
-        steps: [
-          Step(
-            title: const Text('Formas de Pago'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Selecciona las formas de pago que deseas habilitar:'),
-                const SizedBox(height: 10),
-                ..._paymentMethods.entries.map((entry) => CheckboxListTile(
-                  title: Text(entry.key),
-                  value: entry.value,
-                  onChanged: (bool? value) {
-                    setState(() => _paymentMethods[entry.key] = value ?? false);
-                  },
-                )),
-                const Text(
-                  'Nota: Podrás agregar más formas de pago después.',
-                  style: TextStyle(fontStyle: FontStyle.italic),
-                ),
-              ],
+      body: Column(
+        children: [
+          // Header con progreso
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
             ),
-            isActive: _currentStep >= 0,
-          ),
-          Step(
-            title: const Text('Productos de Prueba'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
               children: [
-                const Text('¿Deseas crear productos de prueba?'),
-                const SizedBox(height: 10),
-                SwitchListTile(
-                  title: const Text('Crear productos de ejemplo'),
-                  subtitle: const Text('Se crearán 10 productos de diferentes categorías con 10 unidades de stock cada uno'),
-                  value: _shouldCreateTestProducts,
-                  onChanged: (value) {
-                    setState(() => _shouldCreateTestProducts = value);
-                  },
+                // Indicador de progreso
+                Row(
+                  children: List.generate(4, (index) {
+                    return Expanded(
+                      child: Container(
+                        height: 4,
+                        margin: EdgeInsets.only(right: index < 3 ? 8 : 0),
+                        decoration: BoxDecoration(
+                          color: index <= _currentStep 
+                            ? Colors.white 
+                            : Colors.white.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    );
+                  }),
                 ),
-                const SizedBox(height: 10),
-                if (_shouldCreateTestProducts)
-                  const Text(
-                    'También se crearán 4 ventas de prueba para tener un historial inicial.',
-                    style: TextStyle(fontStyle: FontStyle.italic),
+                const SizedBox(height: 16),
+                Text(
+                  'Paso ${_currentStep + 1} de 4',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _getStepTitle(_currentStep),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
-            isActive: _currentStep >= 1,
           ),
-          Step(
-            title: const Text('Configuración de IVA'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SwitchListTile(
-                  title: const Text('¿Usar IVA?'),
-                  value: _vatEnabled,
-                  onChanged: (value) {
-                    setState(() => _vatEnabled = value);
-                  },
+          
+          // Contenido principal
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: _buildStepContent(_currentStep),
+            ),
+          ),
+          
+          // Botones de navegación
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, -2),
                 ),
-                if (_vatEnabled) ...[
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: _ivaController,
-                    decoration: const InputDecoration(
-                      labelText: 'Porcentaje de IVA',
-                      suffixText: '%',
-                      border: OutlineInputBorder(),
+              ],
+            ),
+            child: Row(
+              children: [
+                if (_currentStep > 0)
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() => _currentStep--);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: Theme.of(context).primaryColor),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Anterior',
+                        style: TextStyle(fontSize: 16),
+                      ),
                     ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-                    ],
                   ),
-                ],
-                const Text(
-                  'Nota: Podrás cambiar esta configuración después.',
-                  style: TextStyle(fontStyle: FontStyle.italic),
+                if (_currentStep > 0) const SizedBox(width: 16),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _canContinueToNextStep() ? () {
+                      if (_currentStep < 3) {
+                        setState(() => _currentStep++);
+                      } else {
+                        _finishOnboarding();
+                      }
+                    } : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      _currentStep < 3 ? 'Siguiente' : 'Finalizar',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            isActive: _currentStep >= 2,
-          ),
-          Step(
-            title: const Text('Tasa de Cambio'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Configura la tasa de cambio inicial:'),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _exchangeRateController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tasa USD -> VES',
-                    hintText: 'Ej: 35.50',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*[,.]?\d{0,2}')),
-                  ],
-                ),
-                const Text(
-                  'Nota: Podrás actualizar la tasa de cambio en cualquier momento.',
-                  style: TextStyle(fontStyle: FontStyle.italic),
-                ),
-              ],
-            ),
-            isActive: _currentStep >= 3,
           ),
         ],
       ),
+    );
+  }
+
+  String _getStepTitle(int step) {
+    switch (step) {
+      case 0:
+        return 'Formas de Pago';
+      case 1:
+        return 'Productos de Prueba';
+      case 2:
+        return 'Configuración de IVA';
+      case 3:
+        return 'Tasa de Cambio';
+      default:
+        return '';
+    }
+  }
+
+  bool _canContinueToNextStep() {
+    switch (_currentStep) {
+      case 0:
+        return _paymentMethods.values.any((value) => value);
+      case 1:
+        return true; // Siempre se puede continuar
+      case 2:
+        return true; // Siempre se puede continuar
+      case 3:
+        final rateText = _exchangeRateController.text.trim();
+        if (rateText.isEmpty) return false;
+        final rate = double.tryParse(rateText.replaceAll(',', '.'));
+        return rate != null && rate > 0;
+      default:
+        return false;
+    }
+  }
+
+  Widget _buildStepContent(int step) {
+    switch (step) {
+      case 0:
+        return _buildPaymentMethodsStep();
+      case 1:
+        return _buildTestProductsStep();
+      case 2:
+        return _buildVatStep();
+      case 3:
+        return _buildExchangeRateStep();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildPaymentMethodsStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepHeader(
+          icon: Icons.payment,
+          title: 'Formas de Pago',
+          subtitle: 'Selecciona las formas de pago que deseas habilitar en tu negocio',
+        ),
+        const SizedBox(height: 24),
+        ..._paymentMethods.entries.map((entry) => Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: entry.value ? Theme.of(context).primaryColor : Colors.grey.shade300,
+              width: entry.value ? 2 : 1,
+            ),
+          ),
+          child: CheckboxListTile(
+            title: Text(
+              entry.key,
+              style: TextStyle(
+                fontWeight: entry.value ? FontWeight.bold : FontWeight.normal,
+                color: entry.value ? Theme.of(context).primaryColor : Colors.black87,
+              ),
+            ),
+            value: entry.value,
+            onChanged: (bool? value) {
+              setState(() => _paymentMethods[entry.key] = value ?? false);
+            },
+            activeColor: Theme.of(context).primaryColor,
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          ),
+        )),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Podrás agregar más formas de pago después desde la configuración.',
+                  style: TextStyle(
+                    color: Colors.blue.shade700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTestProductsStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepHeader(
+          icon: Icons.inventory,
+          title: 'Productos de Prueba',
+          subtitle: '¿Deseas crear productos de ejemplo para comenzar?',
+        ),
+        const SizedBox(height: 24),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: SwitchListTile(
+            title: const Text(
+              'Crear productos de ejemplo',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text(
+              'Se crearán 10 productos de diferentes categorías con 10 unidades de stock cada uno',
+            ),
+            value: _shouldCreateTestProducts,
+            onChanged: (value) {
+              setState(() => _shouldCreateTestProducts = value);
+            },
+            activeColor: Theme.of(context).primaryColor,
+          ),
+        ),
+        if (_shouldCreateTestProducts) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Productos que se crearán:',
+                      style: TextStyle(
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text('• 10 productos de diferentes categorías'),
+                const Text('• Stock inicial de 10 unidades cada uno'),
+                const Text('• Categorías: Bebidas, Snacks, Dulces, Enlatados, Lácteos'),
+                const Text('• 2 proveedores de ejemplo'),
+                const Text('• 30 ventas de prueba (históricas)'),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildVatStep() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepHeader(
+          icon: Icons.receipt,
+          title: 'Configuración de IVA',
+          subtitle: 'Configura el impuesto al valor agregado para tus productos',
+        ),
+        const SizedBox(height: 24),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: SwitchListTile(
+            title: const Text(
+              '¿Usar IVA?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: const Text('Habilitar el cálculo automático de IVA en las ventas'),
+            value: _vatEnabled,
+            onChanged: (value) {
+              setState(() => _vatEnabled = value);
+            },
+            activeColor: Theme.of(context).primaryColor,
+          ),
+        ),
+        if (_vatEnabled) ...[
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _ivaController,
+            decoration: const InputDecoration(
+              labelText: 'Porcentaje de IVA',
+              suffixText: '%',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.percent),
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
+          ),
+        ],
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Podrás cambiar esta configuración después desde la configuración de impuestos.',
+                  style: TextStyle(
+                    color: Colors.orange.shade700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExchangeRateStep() {
+    final rateText = _exchangeRateController.text.trim();
+    final isValidRate = rateText.isNotEmpty && 
+                       double.tryParse(rateText.replaceAll(',', '.')) != null &&
+                       double.tryParse(rateText.replaceAll(',', '.'))! > 0;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildStepHeader(
+          icon: Icons.currency_exchange,
+          title: 'Tasa de Cambio',
+          subtitle: 'Configura la tasa de cambio inicial USD a Bolívares',
+        ),
+        const SizedBox(height: 24),
+        TextFormField(
+          controller: _exchangeRateController,
+          decoration: InputDecoration(
+            labelText: 'Tasa USD → VES',
+            hintText: 'Ej: 35.50',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.attach_money),
+            suffixText: 'Bs.',
+            suffixIcon: rateText.isNotEmpty 
+              ? Icon(
+                  isValidRate ? Icons.check_circle : Icons.error,
+                  color: isValidRate ? Colors.green : Colors.red,
+                )
+              : null,
+          ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*[,.]?\d{0,2}')),
+          ],
+        ),
+        if (rateText.isNotEmpty && !isValidRate) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Por favor ingresa una tasa de cambio válida mayor a 0',
+            style: TextStyle(
+              color: Colors.red.shade600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.purple.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.purple.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.update, color: Colors.purple.shade700, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Podrás actualizar la tasa de cambio en cualquier momento desde la configuración.',
+                  style: TextStyle(
+                    color: Colors.purple.shade700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepHeader({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            size: 32,
+            color: Theme.of(context).primaryColor,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
     );
   }
 } 

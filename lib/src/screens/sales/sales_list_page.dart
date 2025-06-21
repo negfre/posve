@@ -4,6 +4,7 @@ import '../../models/sale.dart';
 import '../../services/database_helper.dart'; // Importa el helper y los modelos
 // Opcional, para colores
 import 'sale_details_page.dart'; // Importamos la página de detalles
+import 'sales_order_page.dart'; // Importamos la página de registro de ventas
 
 class SalesListPage extends StatefulWidget {
   const SalesListPage({super.key});
@@ -221,10 +222,10 @@ class _SalesListPageState extends State<SalesListPage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Navegar a la página de creación de venta
-          // Navigator.push(
-          //   context,
-          //   MaterialPageRoute(builder: (context) => SalesOrderPage()),
-          // ).then((_) => _loadSales());
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SalesOrderPage()),
+          ).then((_) => _loadSales());
         },
         child: const Icon(Icons.add),
       ),
