@@ -7,7 +7,9 @@ import 'sale_details_page.dart'; // Importamos la página de detalles
 import 'sales_order_page.dart'; // Importamos la página de registro de ventas
 
 class SalesListPage extends StatefulWidget {
-  const SalesListPage({super.key});
+  final String? filterPeriod; // Puede ser 'today', 'month', o null para todo
+
+  const SalesListPage({super.key, this.filterPeriod});
 
   @override
   State<SalesListPage> createState() => _SalesListPageState();
@@ -28,7 +30,13 @@ class _SalesListPageState extends State<SalesListPage> {
 
   void _loadSales() {
     setState(() {
-      _salesFuture = _dbHelper.getAllSales();
+      if (widget.filterPeriod == 'today') {
+        _salesFuture = _dbHelper.getSalesToday();
+      } else if (widget.filterPeriod == 'month') {
+        _salesFuture = _dbHelper.getSalesThisMonth();
+      } else {
+        _salesFuture = _dbHelper.getAllSales();
+      }
     });
   }
   
@@ -96,7 +104,13 @@ class _SalesListPageState extends State<SalesListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Listado de Ventas'),
+        title: Text(
+          widget.filterPeriod == 'today' 
+            ? 'Ventas de Hoy' 
+            : widget.filterPeriod == 'month' 
+              ? 'Ventas del Mes'
+              : 'Listado de Ventas'
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () async {

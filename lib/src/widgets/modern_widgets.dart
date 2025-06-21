@@ -74,8 +74,8 @@ class MetricCard extends StatelessWidget {
               const SizedBox(height: 4),
               isLoading
                   ? const SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Flexible(
@@ -84,7 +84,7 @@ class MetricCard extends StatelessWidget {
                         child: Text(
                           value,
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: color,
                           ),
