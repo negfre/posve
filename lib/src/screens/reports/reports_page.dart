@@ -381,7 +381,7 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
       // Para el semanal, ordenar por día de la semana
       final daysOrder = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
       sortedDates.sort((a, b) => 
-        daysOrder.indexOf(a) > -1 && daysOrder.indexOf(b) > -1 
+        daysOrder.contains(a) && daysOrder.contains(b) 
           ? daysOrder.indexOf(a).compareTo(daysOrder.indexOf(b))
           : a.compareTo(b)
       );

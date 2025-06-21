@@ -22,7 +22,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final Set<String> _selectedPaymentMethods = {};
   double? _exchangeRate;
   bool _vatEnabled = true;
-  int _testProductCount = 0;
+  final int _testProductCount = 0;
 
   // Formas de pago
   final Map<String, bool> _paymentMethods = {
@@ -238,7 +238,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       
     } catch (e) {
       print('Error al crear productos de prueba: $e');
-      throw e; // Re-lanzar para que se capture en _finishOnboarding
+      rethrow; // Re-lanzar para que se capture en _finishOnboarding
     }
   }
 
