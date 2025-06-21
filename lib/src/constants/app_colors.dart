@@ -32,6 +32,7 @@ class AppColors {
   // Colores para ventas y compras
   static const Color saleColor = Color(0xFF4CAF50); // Verde para ventas
   static const Color purchaseColor = Color(0xFF2196F3); // Azul para compras
+  static const Color expenseColor = Color(0xFFFF5722); // Rojo para gastos
   static const Color stockLowColor = Color(0xFFFF5722); // Rojo para stock bajo
   
   // Gradientes

@@ -21,6 +21,8 @@ import '../settings/payment_methods_screen.dart';
 import '../settings/tax_settings_page.dart';
 import '../admin/user_management_page.dart';
 import '../admin/database_settings_page.dart';
+import '../expenses/expense_list_page.dart';
+import '../expenses/expense_form_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -57,16 +59,22 @@ class _HomePageState extends State<HomePage> {
         _dbHelper.getProducts(),
         _dbHelper.getSalesThisMonth(),
         _dbHelper.getExchangeRate(),
+        _dbHelper.getExpensesToday(),
+        _dbHelper.getExpensesThisMonth(),
       ]);
 
       final todaySales = futures[0] as List;
       final products = futures[1] as List;
       final monthSales = futures[2] as List;
       final exchangeRate = futures[3] as double;
+      final todayExpenses = futures[4] as List;
+      final monthExpenses = futures[5] as List;
 
       // Calcular métricas
       double todayTotal = 0;
       double monthTotal = 0;
+      double todayExpensesTotal = 0;
+      double monthExpensesTotal = 0;
       int lowStockCount = 0;
 
       for (var sale in todaySales) {
@@ -75,6 +83,14 @@ class _HomePageState extends State<HomePage> {
 
       for (var sale in monthSales) {
         monthTotal += sale.total;
+      }
+
+      for (var expense in todayExpenses) {
+        todayExpensesTotal += expense.amount;
+      }
+
+      for (var expense in monthExpenses) {
+        monthExpensesTotal += expense.amount;
       }
 
       for (var product in products) {
@@ -91,6 +107,9 @@ class _HomePageState extends State<HomePage> {
           'totalProducts': products.length,
           'lowStockCount': lowStockCount,
           'exchangeRate': exchangeRate,
+          'todayExpenses': todayExpenses.length,
+          'todayExpensesTotal': todayExpensesTotal,
+          'monthExpensesTotal': monthExpensesTotal,
         };
         _isLoadingMetrics = false;
       });
@@ -238,7 +257,7 @@ class _HomePageState extends State<HomePage> {
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 0.85,
+          childAspectRatio: 1.1,
           children: [
             MetricCard(
               title: 'Ventas Hoy',
@@ -248,6 +267,15 @@ class _HomePageState extends State<HomePage> {
               subtitle: _currencyFormatter.format(_metrics['todayTotal'] ?? 0),
               isLoading: _isLoadingMetrics,
               onTap: () => _navigateTo(context, const SalesListPage()),
+            ),
+            MetricCard(
+              title: 'Gastos Hoy',
+              value: _isLoadingMetrics ? '...' : '${_metrics['todayExpenses'] ?? 0}',
+              icon: Icons.receipt_long,
+              color: AppColors.expenseColor,
+              subtitle: _currencyFormatter.format(_metrics['todayExpensesTotal'] ?? 0),
+              isLoading: _isLoadingMetrics,
+              onTap: () => _navigateTo(context, const ExpenseListPage()),
             ),
             MetricCard(
               title: 'Productos',
@@ -266,6 +294,15 @@ class _HomePageState extends State<HomePage> {
               subtitle: 'Total acumulado',
               isLoading: _isLoadingMetrics,
               onTap: () => _navigateTo(context, const ReportsPage()),
+            ),
+            MetricCard(
+              title: 'Gastos del Mes',
+              value: _isLoadingMetrics ? '...' : _currencyFormatter.format(_metrics['monthExpensesTotal'] ?? 0),
+              icon: Icons.trending_down,
+              color: AppColors.expenseColor,
+              subtitle: 'Total acumulado',
+              isLoading: _isLoadingMetrics,
+              onTap: () => _navigateTo(context, const ExpenseListPage()),
             ),
             MetricCard(
               title: 'Tasa de Cambio',
@@ -303,6 +340,12 @@ class _HomePageState extends State<HomePage> {
                 onTap: () => _navigateTo(context, const SalesOrderPage()),
               ),
               ActionCard(
+                title: 'Nuevo Gasto',
+                icon: Icons.receipt_long,
+                color: AppColors.expenseColor,
+                onTap: () => _navigateTo(context, const ExpenseFormPage()),
+              ),
+              ActionCard(
                 title: 'Registrar Compra',
                 icon: Icons.shopping_cart_checkout,
                 color: AppColors.purchaseColor,
@@ -313,6 +356,12 @@ class _HomePageState extends State<HomePage> {
                 icon: Icons.receipt_long,
                 color: AppColors.secondaryColor,
                 onTap: () => _navigateTo(context, const SalesListPage()),
+              ),
+              ActionCard(
+                title: 'Ver Gastos',
+                icon: Icons.account_balance_wallet,
+                color: AppColors.expenseColor,
+                onTap: () => _navigateTo(context, const ExpenseListPage()),
               ),
               ActionCard(
                 title: 'Reportes',

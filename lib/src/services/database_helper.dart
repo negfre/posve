@@ -14,6 +14,7 @@ import '../models/client.dart'; // <-- Importar Client
 import '../models/payment_method.dart';
 import '../models/sale.dart';
 import '../models/sale_item.dart';
+import '../models/expense.dart'; // Importar modelos de gastos
 import 'package:shared_preferences/shared_preferences.dart';
 // Si creas un modelo para AppSetting
 
@@ -33,7 +34,7 @@ class DatabaseHelper {
   static Database? _database;
 
   // Versión de la base de datos
-  static const _databaseVersion = 13; // Incrementado para la nueva migración
+  static const _databaseVersion = 14; // Incrementado para añadir gestión de gastos
 
   // Claves para app_settings
   static const String exchangeRateKey = 'exchange_rate_usd_ves';
@@ -73,6 +74,10 @@ class DatabaseHelper {
         created_at TEXT NOT NULL
       )
     ''');
+    
+    // Crear tablas de gastos
+    await _createExpenseCategoriesTable(db);
+    await _createExpensesTable(db);
     
     // Insertar configuraciones iniciales
     await db.insert('app_settings', {'key': exchangeRateKey, 'value': '1.0'},
@@ -280,6 +285,13 @@ class DatabaseHelper {
     }
     if (oldVersion < 13) {
       await _migrateToV12(db);
+    }
+    if (oldVersion < 14) {
+      print("Aplicando migración v13 a v14...");
+      // Crear tablas de gastos
+      await _createExpenseCategoriesTable(db);
+      await _createExpensesTable(db);
+      print("Migración v13 a v14 completada.");
     }
   }
 
@@ -2186,5 +2198,269 @@ class DatabaseHelper {
       'payment_methods': paymentMethods,
       'payment_methods_amounts': paymentMethodsAmounts,
     };
+  }
+
+  // ===== GESTIÓN DE GASTOS =====
+
+  // Crear tabla de categorías de gastos
+  Future<void> _createExpenseCategoriesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS expense_categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        description TEXT,
+        color TEXT NOT NULL DEFAULT '#2196F3',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  // Crear tabla de gastos
+  Future<void> _createExpensesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category TEXT NOT NULL,
+        expense_date TEXT NOT NULL,
+        notes TEXT,
+        receipt_number TEXT,
+        supplier TEXT,
+        payment_method TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  // Insertar categoría de gasto
+  Future<int> insertExpenseCategory(ExpenseCategory category) async {
+    final db = await database;
+    return await db.insert('expense_categories', category.toMap());
+  }
+
+  // Obtener todas las categorías de gastos
+  Future<List<ExpenseCategory>> getExpenseCategories() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'expense_categories',
+      orderBy: 'name ASC',
+    );
+    return List.generate(maps.length, (i) {
+      return ExpenseCategory.fromMap(maps[i]);
+    });
+  }
+
+  // Actualizar categoría de gasto
+  Future<int> updateExpenseCategory(ExpenseCategory category) async {
+    final db = await database;
+    return await db.update(
+      'expense_categories',
+      category.toMap(),
+      where: 'id = ?',
+      whereArgs: [category.id],
+    );
+  }
+
+  // Eliminar categoría de gasto
+  Future<int> deleteExpenseCategory(int id) async {
+    final db = await database;
+    return await db.delete(
+      'expense_categories',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Insertar gasto
+  Future<int> insertExpense(Expense expense) async {
+    final db = await database;
+    return await db.insert('expenses', expense.toMap());
+  }
+
+  // Obtener todos los gastos
+  Future<List<Expense>> getExpenses() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'expenses',
+      orderBy: 'expense_date DESC',
+    );
+    return List.generate(maps.length, (i) {
+      return Expense.fromMap(maps[i]);
+    });
+  }
+
+  // Obtener gasto por ID
+  Future<Expense?> getExpense(int id) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'expenses',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return Expense.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  // Actualizar gasto
+  Future<int> updateExpense(Expense expense) async {
+    final db = await database;
+    return await db.update(
+      'expenses',
+      expense.toMap(),
+      where: 'id = ?',
+      whereArgs: [expense.id],
+    );
+  }
+
+  // Eliminar gasto
+  Future<int> deleteExpense(int id) async {
+    final db = await database;
+    return await db.delete(
+      'expenses',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Obtener gastos por rango de fechas
+  Future<List<Expense>> getExpensesByDateRange(DateTime startDate, DateTime endDate) async {
+    final db = await database;
+    final startDateIso = startDate.toIso8601String();
+    final endDateIso = endDate.toIso8601String();
+    
+    final List<Map<String, dynamic>> maps = await db.query(
+      'expenses',
+      where: 'expense_date BETWEEN ? AND ?',
+      whereArgs: [startDateIso, endDateIso],
+      orderBy: 'expense_date DESC',
+    );
+    
+    return List.generate(maps.length, (i) {
+      return Expense.fromMap(maps[i]);
+    });
+  }
+
+  // Obtener gastos del día actual
+  Future<List<Expense>> getExpensesToday() async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+    return getExpensesByDateRange(startOfDay, endOfDay);
+  }
+
+  // Obtener gastos del mes actual
+  Future<List<Expense>> getExpensesThisMonth() async {
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
+    return getExpensesByDateRange(startOfMonth, endOfMonth);
+  }
+
+  // Obtener resumen de gastos por período
+  Future<Map<String, dynamic>> getExpensesSummary(DateTime startDate, DateTime endDate) async {
+    final expenses = await getExpensesByDateRange(startDate, endDate);
+    
+    if (expenses.isEmpty) {
+      return {
+        'total_expenses': 0,
+        'total_amount': 0.0,
+        'avg_amount': 0.0,
+        'expenses_count': 0,
+        'categories': <String, int>{},
+        'categories_amounts': <String, double>{},
+        'payment_methods': <String, int>{},
+        'payment_methods_amounts': <String, double>{},
+      };
+    }
+    
+    double totalAmount = 0.0;
+    final categories = <String, int>{};
+    final categoriesAmounts = <String, double>{};
+    final paymentMethods = <String, int>{};
+    final paymentMethodsAmounts = <String, double>{};
+    
+    for (final expense in expenses) {
+      totalAmount += expense.amount;
+      
+      // Contar por categoría
+      categories[expense.category] = (categories[expense.category] ?? 0) + 1;
+      categoriesAmounts[expense.category] = (categoriesAmounts[expense.category] ?? 0.0) + expense.amount;
+      
+      // Contar por método de pago
+      paymentMethods[expense.paymentMethod] = (paymentMethods[expense.paymentMethod] ?? 0) + 1;
+      paymentMethodsAmounts[expense.paymentMethod] = (paymentMethodsAmounts[expense.paymentMethod] ?? 0.0) + expense.amount;
+    }
+    
+    return {
+      'total_expenses': expenses.length,
+      'total_amount': totalAmount,
+      'avg_amount': expenses.isEmpty ? 0.0 : totalAmount / expenses.length,
+      'expenses_count': expenses.length,
+      'categories': categories,
+      'categories_amounts': categoriesAmounts,
+      'payment_methods': paymentMethods,
+      'payment_methods_amounts': paymentMethodsAmounts,
+    };
+  }
+
+  // Inicializar categorías de gastos por defecto
+  Future<void> initializeDefaultExpenseCategories() async {
+    final existingCategories = await getExpenseCategories();
+    if (existingCategories.isNotEmpty) return; // Ya existen categorías
+
+    final defaultCategories = [
+      ExpenseCategory(
+        name: 'Servicios Públicos',
+        description: 'Electricidad, agua, gas, internet, etc.',
+        color: '#FF5722',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      ExpenseCategory(
+        name: 'Alquiler',
+        description: 'Pago de alquiler del local',
+        color: '#9C27B0',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      ExpenseCategory(
+        name: 'Personal',
+        description: 'Salarios, bonificaciones, etc.',
+        color: '#2196F3',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      ExpenseCategory(
+        name: 'Mantenimiento',
+        description: 'Reparaciones, equipos, etc.',
+        color: '#FF9800',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      ExpenseCategory(
+        name: 'Marketing',
+        description: 'Publicidad, promociones, etc.',
+        color: '#4CAF50',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+      ExpenseCategory(
+        name: 'Otros',
+        description: 'Gastos varios no categorizados',
+        color: '#607D8B',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    ];
+
+    for (final category in defaultCategories) {
+      await insertExpenseCategory(category);
+    }
   }
 } // Final de la clase DatabaseHelper

@@ -302,6 +302,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       print('${products.length} productos de prueba creados exitosamente');
       
+      // Inicializar categorías de gastos por defecto
+      await dbHelper.initializeDefaultExpenseCategories();
+      print('Categorías de gastos inicializadas');
+      
       // Crear ventas de prueba
       if (_testProductCount > 0) {
         await _createDemoSales(products);

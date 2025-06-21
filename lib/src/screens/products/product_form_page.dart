@@ -627,10 +627,6 @@ class _ProductFormPageState extends State<ProductFormPage> {
                                  _selectedCategoryId = newValue;
                                });
                              },
-                             validator: (value) {
-                               if (value == null) return 'Seleccione una categoría';
-                               return null;
-                             },
                              decoration: InputDecoration(
                                labelText: 'Categoría',
                                prefixIcon: _categoriesLoading
