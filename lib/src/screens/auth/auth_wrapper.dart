@@ -2,12 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/database_helper.dart';
+import '../../services/license_service.dart';
 import 'login_page.dart';
 import '../home/home_page.dart'; // Importa la HomePage (incluso si es temporal)
 import '../onboarding/onboarding_screen.dart';
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  final LicenseService _licenseService = LicenseService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Verificar licencia después de un breve delay para asegurar que el contexto esté listo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkLicense();
+    });
+  }
+
+  Future<void> _checkLicense() async {
+    try {
+      await _licenseService.checkLicenseOnStartup(context);
+    } catch (e) {
+      print('Error verificando licencia: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

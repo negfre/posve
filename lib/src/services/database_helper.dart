@@ -1712,8 +1712,29 @@ class DatabaseHelper {
   Future<int> deleteAllProducts() async {
     final db = await database;
     print("Borrando TODOS los productos...");
-    // Esto también borrará movimientos asociados por ON DELETE CASCADE
-    return await db.delete('products'); 
+    
+    try {
+      // Usar transacción para manejar las constraints
+      return await db.transaction((txn) async {
+        // Primero borrar los items de venta que referencian productos
+        await txn.delete('sale_items');
+        
+        // Luego borrar los movimientos de inventario que referencian productos
+        await txn.delete('inventory_movements');
+        
+        // Finalmente borrar los productos
+        return await txn.delete('products');
+      });
+    } catch (e) {
+      print("Error durante limpieza de productos: $e");
+      // Si falla, intentar borrar solo los productos (puede fallar por constraints)
+      try {
+        return await db.delete('products');
+      } catch (e2) {
+        print("Error secundario durante limpieza de productos: $e2");
+        return 0;
+      }
+    }
   }
 
   Future<int> deleteAllMovements() async {
@@ -2462,5 +2483,179 @@ class DatabaseHelper {
     for (final category in defaultCategories) {
       await insertExpenseCategory(category);
     }
+  }
+
+  // ===== MÉTODOS DE EXPORTACIÓN =====
+  
+  // Obtener todos los productos para exportación
+  Future<List<Map<String, dynamic>>> getAllProductsForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('products');
+    return maps;
+  }
+
+  // Obtener todas las categorías para exportación
+  Future<List<Map<String, dynamic>>> getAllCategoriesForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('categories');
+    return maps;
+  }
+
+  // Obtener todos los proveedores para exportación
+  Future<List<Map<String, dynamic>>> getAllSuppliersForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('suppliers');
+    return maps;
+  }
+
+  // Obtener todos los clientes para exportación
+  Future<List<Map<String, dynamic>>> getAllClientsForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('clients');
+    return maps;
+  }
+
+  // Obtener todas las ventas para exportación
+  Future<List<Map<String, dynamic>>> getAllSalesForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('sales');
+    return maps;
+  }
+
+  // Obtener todas las compras para exportación
+  Future<List<Map<String, dynamic>>> getAllPurchasesForExport() async {
+    final db = await database;
+    try {
+      final List<Map<String, dynamic>> maps = await db.query('purchases');
+      return maps;
+    } catch (e) {
+      // Si la tabla no existe, retornar lista vacía
+      return [];
+    }
+  }
+
+  // Obtener todos los movimientos para exportación
+  Future<List<Map<String, dynamic>>> getAllMovementsForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('inventory_movements');
+    return maps;
+  }
+
+  // Obtener todos los gastos para exportación
+  Future<List<Map<String, dynamic>>> getAllExpensesForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('expenses');
+    return maps;
+  }
+
+  // Obtener todos los métodos de pago para exportación
+  Future<List<Map<String, dynamic>>> getAllPaymentMethodsForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('payment_methods');
+    return maps;
+  }
+
+  // Obtener todos los usuarios para exportación
+  Future<List<Map<String, dynamic>>> getAllUsersForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('users');
+    return maps;
+  }
+
+  // Obtener todas las configuraciones para exportación
+  Future<List<Map<String, dynamic>>> getAllSettingsForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('app_settings');
+    return maps;
+  }
+
+  // ===== MÉTODOS DE IMPORTACIÓN =====
+
+  // Importar datos completos
+  Future<void> importData(Map<String, dynamic> importData) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      // 1. Definir el orden correcto de borrado (de hijos a padres)
+      final tablesToDelete = [
+        'sale_items', 
+        'sales', 
+        'inventory_movements', 
+        'expenses', 
+        'products', 
+        'expense_categories', 
+        'categories', 
+        'suppliers', 
+        'clients', 
+        'payment_methods', 
+        'users', 
+        'app_settings',
+        'purchases'
+      ];
+
+      // 2. Limpiar las tablas en el orden definido
+      for (final table in tablesToDelete) {
+        try {
+          await txn.delete(table);
+        } catch (e) {
+          if (e is DatabaseException && e.toString().contains('no such table')) {
+            print("Tabla $table no existe, se omite borrado.");
+          } else {
+            rethrow; // Lanzar otros errores
+          }
+        }
+      }
+
+      // 3. Definir el orden correcto de inserción (de padres a hijos)
+      final tablesToInsert = {
+        'app_settings': 'settings',
+        'users': 'users',
+        'payment_methods': 'paymentMethods',
+        'clients': 'clients',
+        'suppliers': 'suppliers',
+        'categories': 'categories',
+        'expense_categories': 'expense_categories',
+        'products': 'products',
+        'expenses': 'expenses',
+        'inventory_movements': 'movements',
+        'sales': 'sales',
+        'sale_items': 'sale_items',
+        'purchases': 'purchases',
+      };
+      
+      // 4. Insertar los datos en el orden definido
+      for (final tableEntry in tablesToInsert.entries) {
+        final tableName = tableEntry.key;
+        final dataKey = tableEntry.value;
+
+        if (importData[dataKey] != null && importData[dataKey] is List) {
+          for (final item in importData[dataKey]) {
+            try {
+              await txn.insert(tableName, item as Map<String, dynamic>, conflictAlgorithm: ConflictAlgorithm.replace);
+            } catch (e) {
+              print("Error insertando en tabla $tableName: $e. Item: $item");
+              if (e is DatabaseException && e.toString().contains('no such table')) {
+                print("Tabla $tableName no existe, se omite inserción.");
+                break; 
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ===== MÉTODOS DE EXPORTACIÓN =====
+  
+  Future<List<Map<String, dynamic>>> getAllSaleItemsForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('sale_items');
+    return maps;
+  }
+  
+  Future<List<Map<String, dynamic>>> getAllExpenseCategoriesForExport() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query('expense_categories');
+    return maps;
   }
 } // Final de la clase DatabaseHelper

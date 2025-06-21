@@ -6,7 +6,9 @@ import 'src/providers/payment_method_provider.dart'; // <-- Importar PaymentMeth
 import 'src/providers/product_provider.dart'; // <-- Importar ProductProvider
 import 'src/screens/auth/auth_wrapper.dart'; // Importar AuthWrapper
 import 'src/screens/home/home_page.dart'; // Importar HomePage
+import 'src/screens/settings/activate_license_page.dart'; // Importar ActivateLicensePage
 import 'src/services/database_helper.dart'; // Importar DatabaseHelper
+import 'src/services/license_service.dart'; // Importar LicenseService
 import 'src/models/category.dart'; // Importar Category
 import 'src/models/supplier.dart'; // Importar Supplier
 // Importa SplashScreen si aún lo necesitas para alguna lógica inicial
@@ -23,10 +25,13 @@ void main() async { // Convertir a async
   // Crear categoría y proveedor por defecto si no existen
   await _createDefaultCategoryAndSupplier(dbHelper);
   
+  // Inicializar el servicio de licenciamiento
+  final licenseService = LicenseService();
+  
   // Aquí podrías inicializar servicios como la BD si fuera necesario antes de runApp
   // await DatabaseHelper().database; // Ejemplo de inicialización temprana (opcional)
 
-  runApp(const MyApp());
+  runApp(MyApp(licenseService: licenseService));
 }
 
 // Función para crear categoría y proveedor por defecto
@@ -72,7 +77,9 @@ Future<void> _createDefaultCategoryAndSupplier(DatabaseHelper dbHelper) async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, required this.licenseService});
+
+  final LicenseService licenseService;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +101,7 @@ class MyApp extends StatelessWidget {
         routes: {
           '/': (context) => const AuthWrapper(),
           '/home': (context) => const HomePage(),
+          '/activate-license': (context) => const ActivateLicensePage(),
         },
         debugShowCheckedModeBanner: false, // Opcional: Ocultar banner de debug
       ),

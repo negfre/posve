@@ -19,6 +19,7 @@ import '../movements/movement_list_page.dart';
 import '../settings/exchange_rate_page.dart';
 import '../settings/payment_methods_screen.dart';
 import '../settings/tax_settings_page.dart';
+import '../settings/activate_license_page.dart';
 import '../admin/user_management_page.dart';
 import '../admin/database_settings_page.dart';
 import '../expenses/expense_list_page.dart';
@@ -455,6 +456,12 @@ class _HomePageState extends State<HomePage> {
                 subtitle: 'Ajustar impuestos',
                 onTap: () => _navigateTo(context, const TaxSettingsPage()),
               ),
+              _buildActionTile(
+                icon: Icons.vpn_key_outlined,
+                title: 'Activar Licencia',
+                subtitle: 'Gestionar licencia',
+                onTap: () => _navigateTo(context, const ActivateLicensePage()),
+              ),
             ],
           ),
         ),
@@ -612,6 +619,11 @@ class _HomePageState extends State<HomePage> {
             title: const Text('Configuración IVA'),
             onTap: () => _navigateTo(context, const TaxSettingsPage()),
           ),
+          ListTile(
+            leading: const Icon(Icons.vpn_key_outlined),
+            title: const Text('Activar Licencia'),
+            onTap: () => _navigateTo(context, const ActivateLicensePage()),
+          ),
           const Divider(),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -633,6 +645,7 @@ class _HomePageState extends State<HomePage> {
             title: Text('Cerrar Sesión', style: TextStyle(color: Theme.of(context).colorScheme.error)),
             onTap: () async {
               Navigator.pop(context);
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
               await authProvider.logout();
               if (mounted) {
                 Navigator.pushReplacementNamed(context, '/');
