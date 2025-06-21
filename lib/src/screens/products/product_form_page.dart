@@ -403,7 +403,10 @@ class _ProductFormPageState extends State<ProductFormPage> {
                   children: <Widget>[
                     TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(labelText: 'Nombre del Producto'),
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre del Producto',
+                        border: OutlineInputBorder(),
+                      ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return 'El nombre es requerido';
@@ -411,16 +414,25 @@ class _ProductFormPageState extends State<ProductFormPage> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: _descriptionController,
-                      decoration: const InputDecoration(labelText: 'Descripción (Opcional)'),
+                      decoration: const InputDecoration(
+                        labelText: 'Descripción (Opcional)',
+                        border: OutlineInputBorder(),
+                      ),
                       maxLines: 3,
                     ),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: _skuController,
-                      decoration: const InputDecoration(labelText: 'SKU / Código (Opcional)'),
+                      decoration: const InputDecoration(
+                        labelText: 'SKU / Código (Opcional)',
+                        border: OutlineInputBorder(),
+                      ),
                       // Aquí podrías añadir validación de unicidad si es necesario (más complejo)
                     ),
+                    const SizedBox(height: 20),
                     // Mostrar stock actual si se edita, permitir input si se añade
                     _isEditMode
                       ? Padding(
@@ -430,7 +442,10 @@ class _ProductFormPageState extends State<ProductFormPage> {
                       : TextFormField(
                           controller: _stockController,
                           focusNode: _stockFocusNode,
-                          decoration: const InputDecoration(labelText: 'Stock Inicial'),
+                          decoration: const InputDecoration(
+                            labelText: 'Stock Inicial',
+                            border: OutlineInputBorder(),
+                          ),
                           keyboardType: TextInputType.number,
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                            validator: (value) {
@@ -443,10 +458,15 @@ class _ProductFormPageState extends State<ProductFormPage> {
                              return null;
                            },
                         ),
+                    const SizedBox(height: 20),
                      TextFormField(
                       controller: _purchasePriceUsdController,
                       focusNode: _purchasePriceFocusNode,
-                      decoration: const InputDecoration(labelText: 'Precio de Costo (USD)', prefixText: '\$ '),
+                      decoration: const InputDecoration(
+                        labelText: 'Precio de Costo (USD)', 
+                        prefixText: '\$ ',
+                        border: OutlineInputBorder(),
+                      ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -458,10 +478,15 @@ class _ProductFormPageState extends State<ProductFormPage> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 20),
                      TextFormField(
                       controller: _profitMarginController,
                       focusNode: _profitMarginFocusNode,
-                      decoration: const InputDecoration(labelText: 'Margen de Rentabilidad (%)', suffixText: '%'),
+                      decoration: const InputDecoration(
+                        labelText: 'Margen de Rentabilidad (%)', 
+                        suffixText: '%',
+                        border: OutlineInputBorder(),
+                      ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -474,36 +499,49 @@ class _ProductFormPageState extends State<ProductFormPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
                     // Mostrar Precios Calculados USD y VES
-                    Text(
-                      'Precio de Venta (Bs.): ${_vesFormatter.format(_calculatedSellingPriceVes)}',
-                       style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    
-                    // Mostrar si el IVA está aplicado o no
-                    Row(
-                      children: [
-                        Icon(
-                          _isVatEnabled && !_isProductVatExempt ? Icons.check_circle : Icons.cancel,
-                          color: _isVatEnabled && !_isProductVatExempt ? Colors.green : Colors.red,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _isVatEnabled && !_isProductVatExempt 
-                            ? "IVA incluido (${(_defaultTaxRate * 100).toStringAsFixed(0)}%)" 
-                            : "Precio sin IVA",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _isVatEnabled && !_isProductVatExempt ? Colors.green : Colors.red,
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Precio de Venta (Bs.): ${_vesFormatter.format(_calculatedSellingPriceVes)}',
+                             style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          // Mostrar si el IVA está aplicado o no
+                          Row(
+                            children: [
+                              Icon(
+                                _isVatEnabled && !_isProductVatExempt ? Icons.check_circle : Icons.cancel,
+                                color: _isVatEnabled && !_isProductVatExempt ? Colors.green : Colors.red,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isVatEnabled && !_isProductVatExempt 
+                                  ? "IVA incluido (${(_defaultTaxRate * 100).toStringAsFixed(0)}%)" 
+                                  : "Precio sin IVA",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _isVatEnabled && !_isProductVatExempt ? Colors.green : Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
 
+                    const SizedBox(height: 24),
                     // Checkbox para eximir de IVA a este producto específico
-                    const SizedBox(height: 16),
                     CheckboxListTile(
                       title: const Text('Producto Exento de IVA'),
                       subtitle: const Text('Marcar si este producto está exento del pago de impuestos'),
@@ -519,13 +557,10 @@ class _ProductFormPageState extends State<ProductFormPage> {
                       contentPadding: EdgeInsets.zero,
                     ),
                     
-                    // Divider para separar opciones
-                    const Divider(height: 16),
-
-                     const SizedBox(height: 16),
+                    const SizedBox(height: 24),
                     // --- Dropdown de Proveedores ---
                     Text("Proveedor (Opcional)", style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -568,11 +603,11 @@ class _ProductFormPageState extends State<ProductFormPage> {
                     ),
                     // --- Fin Dropdown ---
 
-                    const SizedBox(height: 16), // Espacio antes de categoría
+                    const SizedBox(height: 24), // Espacio antes de categoría
 
                     // --- Fila para Dropdown de Categoría y Botón Añadir ---
                     Text("Categoría (Opcional)", style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -618,13 +653,31 @@ class _ProductFormPageState extends State<ProductFormPage> {
                     ),
                     // --- Fin Fila Categoría ---
 
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 40),
                     Center(
-                      child: ElevatedButton(
-                        onPressed: _saveProduct,
-                        child: Text(_isEditMode ? 'Actualizar Producto' : 'Guardar Producto'),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _saveProduct,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            _isEditMode ? 'Actualizar Producto' : 'Guardar Producto',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),

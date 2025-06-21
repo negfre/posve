@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // Para formatear
 import '../../models/product.dart';
 import '../../services/database_helper.dart';
+import '../../widgets/modern_widgets.dart';
+import '../../constants/app_colors.dart';
 import 'product_form_page.dart'; // Para navegar al formulario
 import '../sales/sales_order_page.dart'; // Para navegación a ventas
 import '../purchases/purchase_order_page.dart'; // Para navegación a compras
@@ -16,7 +18,8 @@ class ProductListPage extends StatefulWidget {
 class _ProductListPageState extends State<ProductListPage> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   late Future<List<Product>> _productsFuture;
-  final NumberFormat _currencyFormatter = NumberFormat.currency(locale: 'es_VE', symbol: 'Bs. ');
+  final NumberFormat _currencyFormatter = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+  final NumberFormat _currencyFormatterVes = NumberFormat.currency(locale: 'es_VE', symbol: 'Bs. ');
   final _futureBuilderKey = UniqueKey();
   
   // Variables para búsqueda y filtros
@@ -55,228 +58,105 @@ class _ProductListPageState extends State<ProductListPage> {
 
   // Método para aplicar filtros y búsqueda
   void _applyFilters() {
-    if (!mounted) return;
+    _searchQuery = _searchController.text.toLowerCase();
     
-    _productsFuture.then((allProducts) {
+    _productsFuture.then((products) {
       setState(() {
-        _searchQuery = _searchController.text.toLowerCase();
-        
-        // Aplicar todos los filtros en secuencia
-        _filteredProducts = allProducts.where((product) {
-          // Búsqueda por texto
-          bool matchesSearch = _searchQuery.isEmpty || 
-              product.name.toLowerCase().contains(_searchQuery) ||
-              (product.description.toLowerCase().contains(_searchQuery)) ||
-              (product.sku?.toLowerCase().contains(_searchQuery) ?? false);
+        _filteredProducts = products.where((product) {
+          // Filtro de búsqueda
+          bool matchesSearch = product.name.toLowerCase().contains(_searchQuery) ||
+                              product.description.toLowerCase().contains(_searchQuery) ||
+                              (product.sku?.toLowerCase().contains(_searchQuery) ?? false);
           
-          // Filtro de bajo stock (<5)
-          if (_showLowStock && !_showOutOfStock) {
-            return matchesSearch && product.currentStock < 5 && product.currentStock > 0;
-          }
+          // Filtro de stock bajo
+          bool matchesLowStock = !_showLowStock || product.currentStock <= product.minStock;
           
-          // Filtro de sin stock (0)
-          if (_showOutOfStock && !_showLowStock) {
-            return matchesSearch && product.currentStock == 0;
-          }
+          // Filtro de sin stock
+          bool matchesOutOfStock = !_showOutOfStock || product.currentStock == 0;
           
-          // Ambos filtros
-          if (_showLowStock && _showOutOfStock) {
-            return matchesSearch && product.currentStock < 5;
-          }
-          
-          // Sin filtros de stock
-          return matchesSearch;
+          return matchesSearch && matchesLowStock && matchesOutOfStock;
         }).toList();
       });
     });
   }
 
-  // Método para navegar a la página de compras con el producto seleccionado
-  void _navigateToPurchase(Product product) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PurchaseOrderPage(initialProduct: product),
-      ),
-    ).then((_) {
-      // Recargar productos al regresar (opcional)
-      _loadProducts();
-    });
-  }
-
-  // Método para navegar a la página de ventas con el producto seleccionado
-  void _navigateToSale(Product product) {
-    // Verificación de stock antes de navegar
-    if (product.currentStock <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No hay stock disponible para vender.'),
-          backgroundColor: Colors.orange
-        ),
-      );
-      return;
-    }
-    
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => SalesOrderPage(initialProduct: product),
-      ),
-    ).then((_) {
-      // Recargar productos al regresar (opcional)
-      _loadProducts();
-    });
-  }
-
-  void _navigateAndRefresh(BuildContext context, {Product? product}) async {
-    // Navegar al formulario y esperar resultado
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ProductFormPage(product: product),
-      ),
+  // Método para eliminar producto
+  Future<void> _deleteProduct(Product product) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirmar eliminación'),
+          content: Text('¿Estás seguro de eliminar "${product.name}"?\n\nEsta acción no se puede deshacer.'),
+          actions: [
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Eliminar'),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
     );
 
-    // Si el formulario devolvió true (indicando cambios), recargar la lista
-    if (result == true && mounted) {
-      _loadProducts(); // Esto recargará los productos y aplicará los filtros
-    }
-  }
-
-  Future<void> _deleteProduct(int id) async {
-    // Implementar diálogo de confirmación
-     bool confirmDelete = await showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Confirmar Borrado'),
-            content: const Text('¿Estás seguro de que deseas eliminar este producto?\n\nNota: No se podrá eliminar si está asociado a ventas.'),
-            actions: <Widget>[
-              TextButton(
-                child: const Text('Cancelar'),
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.red, // Color rojo para acción destructiva
-                ),
-                child: const Text('Eliminar'),
-                onPressed: () => Navigator.of(context).pop(true),
-              ),
-            ],
+    if (confirm == true) {
+      try {
+        await _dbHelper.deleteProduct(product.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Producto "${product.name}" eliminado correctamente'),
+              backgroundColor: AppColors.successColor,
+            ),
           );
-        },
-      ) ?? false; // Si se cierra el diálogo sin seleccionar, retorna false
-
-     if (confirmDelete) {
-        try {
-          await _dbHelper.deleteProduct(id);
-           if (mounted) {
-             ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Producto eliminado'), backgroundColor: Colors.green),
-              );
-              _loadProducts(); // Recargar lista
-           }
-        } catch (e) {
-            if (mounted) {
-              // Mostrar un mensaje más claro si el error es por restricción de clave externa
-              String errorMessage = 'Error al eliminar producto';
-              
-              if (e.toString().contains('FOREIGN KEY constraint failed')) {
-                errorMessage = 'No se puede eliminar: producto asociado a ventas existentes';
-              } else {
-                errorMessage = 'Error al eliminar producto: $e';
-              }
-              
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-              );
-            }
+          _loadProducts(); // Recargar la lista
         }
-     }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al eliminar producto: $e'),
+              backgroundColor: AppColors.errorColor,
+            ),
+          );
+        }
+      }
+    }
   }
 
-  // Widget para construir la fila de filtros
-  Widget _buildFilterBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        children: [
-          // Filtro de stock bajo
-          FilterChip(
-            label: const Text('Stock bajo (<5)'),
-            selected: _showLowStock,
-            onSelected: (selected) {
-              setState(() {
-                _showLowStock = selected;
-                _applyFilters();
-              });
-            },
-            avatar: Icon(
-              _showLowStock ? Icons.check_circle : Icons.warning_amber_rounded,
-              color: _showLowStock ? Colors.white : Colors.orange,
-            ),
-            backgroundColor: Colors.grey.shade200,
-            selectedColor: Colors.orange,
-            checkmarkColor: Colors.white,
-          ),
-          const SizedBox(width: 8),
-          // Filtro de sin stock
-          FilterChip(
-            label: const Text('Sin stock (0)'),
-            selected: _showOutOfStock,
-            onSelected: (selected) {
-              setState(() {
-                _showOutOfStock = selected;
-                _applyFilters();
-              });
-            },
-            avatar: Icon(
-              _showOutOfStock ? Icons.check_circle : Icons.error_outline,
-              color: _showOutOfStock ? Colors.white : Colors.red,
-            ),
-            backgroundColor: Colors.grey.shade200,
-            selectedColor: Colors.red,
-            checkmarkColor: Colors.white,
-          ),
-        ],
+  // Navegar al formulario y recargar al volver
+  void _navigateAndRefresh(BuildContext context, {Product? product}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductFormPage(product: product),
       ),
-    );
+    ).then((_) {
+      _loadProducts(); // Recargar la lista al volver
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lista de Productos'),
+        title: const Text('Productos'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadProducts,
+            tooltip: 'Actualizar lista',
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Barra de búsqueda
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'Buscar productos',
-                hintText: 'Nombre, descripción, SKU...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _applyFilters();
-                        },
-                      )
-                    : null,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-          ),
-          
-          // Fila de filtros (chips)
-          _buildFilterBar(),
+          // Barra de búsqueda y filtros
+          _buildSearchAndFilters(),
           
           // Lista de productos
           Expanded(
@@ -287,112 +167,381 @@ class _ProductListPageState extends State<ProductListPage> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
+                
                 if (snapshot.hasError) {
-                  return Center(child: Text('Error al cargar productos: ${snapshot.error}'));
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: AppColors.errorColor,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error al cargar productos',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: AppColors.textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${snapshot.error}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textLightColor,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        GradientButton(
+                          text: 'Reintentar',
+                          onPressed: _loadProducts,
+                          icon: Icons.refresh,
+                        ),
+                      ],
+                    ),
+                  );
                 }
+                
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No hay productos registrados.'));
+                  return EmptyStateWidget(
+                    title: 'No hay productos',
+                    message: 'Comienza agregando tu primer producto para gestionar tu inventario.',
+                    icon: Icons.inventory_2,
+                    onAction: () => _navigateAndRefresh(context),
+                    actionText: 'Agregar Producto',
+                  );
                 }
 
                 if (_filteredProducts.isEmpty) {
-                  return const Center(child: Text('No se encontraron productos con los filtros aplicados.'));
+                  return EmptyStateWidget(
+                    title: 'No se encontraron productos',
+                    message: 'Intenta ajustar los filtros de búsqueda.',
+                    icon: Icons.search_off,
+                    onAction: () {
+                      _searchController.clear();
+                      _showLowStock = false;
+                      _showOutOfStock = false;
+                      _applyFilters();
+                    },
+                    actionText: 'Limpiar Filtros',
+                  );
                 }
 
-                return ListView.builder(
-                  itemCount: _filteredProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = _filteredProducts[index];
-                    
-                    // Determinar el color del stock según la cantidad
-                    Color stockColor = Colors.black;
-                    if (product.currentStock == 0) {
-                      stockColor = Colors.red;
-                    } else if (product.currentStock < 5) {
-                      stockColor = Colors.orange;
-                    }
-                    
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: ListTile(
-                        title: Text(product.name),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Text(
-                                  'Stock: ',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  '${product.currentStock}',
-                                  style: TextStyle(
-                                    color: stockColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                Text('PVP: ${_currencyFormatter.format(product.sellingPriceVes)}'),
-                              ],
-                            ),
-                            if (product.sku != null && product.sku!.isNotEmpty)
-                              Text('SKU: ${product.sku}', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                          ],
-                        ),
-                        // Trailing con botones de acción
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Botón de Venta (Salidas)
-                            InkWell(
-                              onTap: () => _navigateToSale(product),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.logout, color: Colors.green, size: 24),
-                                  const Text('Salidas', style: TextStyle(fontSize: 10)),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // Botón de Compra (Entradas)
-                            InkWell(
-                              onTap: () => _navigateToPurchase(product),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.login, color: Colors.blue, size: 24),
-                                  const Text('Entradas', style: TextStyle(fontSize: 10)),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // Botón Eliminar Producto
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.redAccent),
-                              tooltip: 'Eliminar Producto',
-                              onPressed: () => _deleteProduct(product.id!),
-                            ),
-                          ],
-                        ),
-                        onTap: () => _navigateAndRefresh(context, product: product),
-                      ),
-                    );
-                  },
+                return RefreshIndicator(
+                  onRefresh: () async => _loadProducts(),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _filteredProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = _filteredProducts[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildProductCard(product),
+                      );
+                    },
+                  ),
                 );
               },
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateAndRefresh(context),
-        tooltip: 'Añadir Producto',
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Agregar'),
+        backgroundColor: AppColors.primaryColor,
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilters() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Barra de búsqueda
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Buscar productos...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _applyFilters();
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: AppColors.backgroundColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          
+          // Filtros
+          Row(
+            children: [
+              Expanded(
+                child: FilterChip(
+                  label: const Text('Stock Bajo'),
+                  selected: _showLowStock,
+                  onSelected: (selected) {
+                    setState(() {
+                      _showLowStock = selected;
+                      _applyFilters();
+                    });
+                  },
+                  selectedColor: AppColors.warningColor.withOpacity(0.2),
+                  checkmarkColor: AppColors.warningColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilterChip(
+                  label: const Text('Sin Stock'),
+                  selected: _showOutOfStock,
+                  onSelected: (selected) {
+                    setState(() {
+                      _showOutOfStock = selected;
+                      _applyFilters();
+                    });
+                  },
+                  selectedColor: AppColors.errorColor.withOpacity(0.2),
+                  checkmarkColor: AppColors.errorColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductCard(Product product) {
+    final isLowStock = product.currentStock <= product.minStock;
+    final isOutOfStock = product.currentStock == 0;
+    
+    return Card(
+      elevation: 2,
+      shadowColor: Colors.black.withOpacity(0.1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: () => _navigateAndRefresh(context, product: product),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Información principal del producto
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Nombre del producto
+                    Text(
+                      product.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textColor,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                    // Descripción
+                    if (product.description.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        product.description,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textLightColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    
+                    // SKU
+                    const SizedBox(height: 6),
+                    Text(
+                      'SKU: ${product.sku}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMutedColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(width: 16),
+              
+              // Información de stock y precio
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Precios
+                    Text(
+                      _currencyFormatter.format(product.sellingPriceUsd),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryColor,
+                      ),
+                    ),
+                    Text(
+                      _currencyFormatterVes.format(product.sellingPriceVes),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMutedColor,
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 8),
+                    
+                    // Stock
+                    Text(
+                      'Stock: ${product.currentStock}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isOutOfStock 
+                            ? AppColors.errorColor 
+                            : isLowStock 
+                                ? AppColors.warningColor 
+                                : AppColors.successColor,
+                      ),
+                    ),
+                    
+                    // Estado del stock
+                    if (isLowStock && !isOutOfStock)
+                      const Text(
+                        'Stock bajo',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.warningColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    if (isOutOfStock)
+                      const Text(
+                        'Sin stock',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.errorColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(width: 8),
+              
+              // Botón de acciones
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, size: 24),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'edit':
+                      _navigateAndRefresh(context, product: product);
+                      break;
+                    case 'delete':
+                      _deleteProduct(product);
+                      break;
+                    case 'sell':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SalesOrderPage(initialProduct: product),
+                        ),
+                      );
+                      break;
+                    case 'buy':
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PurchaseOrderPage(initialProduct: product),
+                        ),
+                      );
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, size: 20),
+                        SizedBox(width: 8),
+                        Text('Editar'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'sell',
+                    child: Row(
+                      children: [
+                        Icon(Icons.point_of_sale, size: 20),
+                        SizedBox(width: 8),
+                        Text('Vender'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'buy',
+                    child: Row(
+                      children: [
+                        Icon(Icons.shopping_cart, size: 20),
+                        SizedBox(width: 8),
+                        Text('Comprar'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete, color: AppColors.errorColor, size: 20),
+                        const SizedBox(width: 8),
+                        Text('Eliminar', style: TextStyle(color: AppColors.errorColor)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
