@@ -98,15 +98,29 @@ class _ActivateLicensePageState extends State<ActivateLicensePage> {
         });
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('¡Licencia activada exitosamente!'),
-              backgroundColor: Colors.green,
-            ),
+          // Show success dialog
+          showDialog(
+            context: context,
+            barrierDismissible: false, // User must tap button to close
+            builder: (BuildContext dialogContext) {
+              return AlertDialog(
+                title: const Text('¡Licencia Activada!'),
+                content: const Text(
+                  'La licencia se ha activado exitosamente. '
+                  'Para que todos los cambios surtan efecto, se recomienda cerrar sesión y volver a ingresar.'
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text('Aceptar'),
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(); // Close the dialog
+                      Navigator.of(context).pop(); // Go back to the previous screen
+                    },
+                  ),
+                ],
+              );
+            },
           );
-          
-          // Regresar a la pantalla anterior
-          Navigator.of(context).pop();
         }
       } else {
         setState(() {

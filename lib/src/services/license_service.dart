@@ -237,6 +237,28 @@ class LicenseService {
     }
   }
 
+  // Calcular días restantes antes de la limpieza
+  Future<int> getDaysUntilCleanup() async {
+    final isValid = await isLicenseValid();
+    if (isValid) return _cleanupIntervalDays + 1; // Un número alto para indicar que no hay riesgo
+
+    final prefs = await SharedPreferences.getInstance();
+    final lastCleanupDate = prefs.getString(_lastCleanupDateKey);
+
+    if (lastCleanupDate == null) {
+      // Si nunca se ha hecho limpieza (o no se ha registrado), se considera que el período de gracia empieza ahora.
+      // Guardamos la fecha actual como si fuera la de la "última limpieza" para empezar a contar.
+      await prefs.setString(_lastCleanupDateKey, DateTime.now().toIso8601String());
+      return _cleanupIntervalDays;
+    }
+
+    final lastCleanup = DateTime.parse(lastCleanupDate);
+    final daysSinceLastCleanup = DateTime.now().difference(lastCleanup).inDays;
+    final daysRemaining = _cleanupIntervalDays - daysSinceLastCleanup;
+
+    return daysRemaining < 0 ? 0 : daysRemaining;
+  }
+
   // Ejecutar limpieza de productos
   Future<void> cleanupProducts() async {
     try {

@@ -2658,4 +2658,31 @@ class DatabaseHelper {
     final List<Map<String, dynamic>> maps = await db.query('expense_categories');
     return maps;
   }
+
+  Future<void> saveOnboardingCompleted(bool completed) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyOnboardingCompleted, completed);
+  }
+
+  // Verificar si hay usuarios en la base de datos
+  Future<bool> hasUsers() async {
+    final db = await database;
+    final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM users'));
+    return count != null && count > 0;
+  }
+
+  Future<User?> getUserByUsername(String username) async {
+    final db = await database;
+    List<Map<String, dynamic>> maps = await db.query(
+      'users',
+      where: 'email = ?',
+      whereArgs: [username],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return User.fromMap(maps.first);
+    } else {
+      return null;
+    }
+  }
 } // Final de la clase DatabaseHelper

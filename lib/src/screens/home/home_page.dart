@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/database_helper.dart';
+import '../../services/license_service.dart';
 import '../../widgets/modern_widgets.dart';
 import '../../constants/app_colors.dart';
 import 'package:intl/intl.dart';
@@ -24,6 +25,7 @@ import '../admin/user_management_page.dart';
 import '../admin/database_settings_page.dart';
 import '../expenses/expense_list_page.dart';
 import '../expenses/expense_form_page.dart';
+import 'package:posve/src/screens/settings/terms_of_service_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -35,10 +37,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   final AuthProvider authProvider = AuthProvider();
+  final LicenseService _licenseService = LicenseService();
   
   // Estado para métricas
   Map<String, dynamic> _metrics = {};
   bool _isLoadingMetrics = true;
+  int? _daysUntilCleanup;
   
   // Formateadores
   final NumberFormat _currencyFormatter = NumberFormat.currency(locale: 'en_US', symbol: '\$');
@@ -48,6 +52,17 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadMetrics();
+    _checkLicenseStatus();
+  }
+
+  Future<void> _checkLicenseStatus() async {
+    final isValid = await _licenseService.isLicenseValid();
+    if (!isValid) {
+      final days = await _licenseService.getDaysUntilCleanup();
+      setState(() {
+        _daysUntilCleanup = days;
+      });
+    }
   }
 
   Future<void> _loadMetrics() async {
@@ -155,6 +170,12 @@ class _HomePageState extends State<HomePage> {
             children: [
               // Header con saludo
               _buildWelcomeHeader(),
+              const SizedBox(height: 16),
+              
+              // Banner de advertencia de licencia
+              if (_daysUntilCleanup != null && _daysUntilCleanup! <= 10)
+                _buildLicenseWarningBanner(),
+              
               const SizedBox(height: 24),
               
               // Métricas principales
@@ -238,6 +259,51 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLicenseWarningBanner() {
+    final days = _daysUntilCleanup!;
+    final message = days > 0
+        ? 'Los productos se eliminarán en $days día${days == 1 ? '' : 's'}.'
+        : 'Los productos podrían ser eliminados en cualquier momento.';
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade300),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning, color: Colors.orange, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Atención: Licencia no activa',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(message, style: const TextStyle(color: Colors.black87, fontSize: 12)),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => _navigateTo(context, const ActivateLicensePage()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+            child: const Text('Activar'),
+          )
         ],
       ),
     );
@@ -353,6 +419,12 @@ class _HomePageState extends State<HomePage> {
                 onTap: () => _navigateTo(context, const PurchaseOrderPage()),
               ),
               ActionCard(
+                title: 'Reportes',
+                icon: Icons.bar_chart,
+                color: AppColors.accentColor,
+                onTap: () => _navigateTo(context, const ReportsPage()),
+              ),
+              ActionCard(
                 title: 'Ver Ventas',
                 icon: Icons.receipt_long,
                 color: AppColors.secondaryColor,
@@ -363,12 +435,6 @@ class _HomePageState extends State<HomePage> {
                 icon: Icons.account_balance_wallet,
                 color: AppColors.expenseColor,
                 onTap: () => _navigateTo(context, const ExpenseListPage()),
-              ),
-              ActionCard(
-                title: 'Reportes',
-                icon: Icons.bar_chart,
-                color: AppColors.accentColor,
-                onTap: () => _navigateTo(context, const ReportsPage()),
               ),
               ActionCard(
                 title: 'Productos',
@@ -395,6 +461,12 @@ class _HomePageState extends State<HomePage> {
         Card(
           child: Column(
             children: [
+              _buildActionTile(
+                icon: Icons.bar_chart_outlined,
+                title: 'Reportes',
+                subtitle: 'Generar y exportar reportes',
+                onTap: () => _navigateTo(context, const ReportsPage()),
+              ),
               _buildActionTile(
                 icon: Icons.inventory_2_outlined,
                 title: 'Productos',
@@ -534,11 +606,11 @@ class _HomePageState extends State<HomePage> {
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
-                    Icons.store,
-                    color: Colors.white,
-                    size: 40,
-                  ),
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    height: 40,
+                    width: 40,
+                  )
                 ),
                 const SizedBox(height: 12),
                 const Text(
@@ -568,10 +640,10 @@ class _HomePageState extends State<HomePage> {
             },
           ),
           const Divider(),
-          const ListTile(
-            leading: Icon(Icons.bar_chart),
-            title: Text('Reportes'),
-            onTap: null,
+          ListTile(
+            leading: const Icon(Icons.bar_chart),
+            title: const Text('Reportes'),
+            onTap: () => _navigateTo(context, const ReportsPage()),
           ),
           const Divider(),
           ListTile(
@@ -640,6 +712,11 @@ class _HomePageState extends State<HomePage> {
             onTap: () => _navigateTo(context, const DatabaseSettingsPage()),
           ),
           const Divider(),
+          ListTile(
+            leading: const Icon(Icons.description_outlined),
+            title: const Text('Acuerdo de Servicio'),
+            onTap: () => _navigateTo(context, const TermsOfServicePage()),
+          ),
           ListTile(
             leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
             title: Text('Cerrar Sesión', style: TextStyle(color: Theme.of(context).colorScheme.error)),

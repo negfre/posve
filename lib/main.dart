@@ -7,6 +7,7 @@ import 'src/providers/product_provider.dart'; // <-- Importar ProductProvider
 import 'src/screens/auth/auth_wrapper.dart'; // Importar AuthWrapper
 import 'src/screens/home/home_page.dart'; // Importar HomePage
 import 'src/screens/settings/activate_license_page.dart'; // Importar ActivateLicensePage
+import 'src/screens/auth/register_page.dart'; // Importar RegisterPage
 import 'src/services/database_helper.dart'; // Importar DatabaseHelper
 import 'src/services/license_service.dart'; // Importar LicenseService
 import 'src/models/category.dart'; // Importar Category
@@ -102,6 +103,7 @@ class MyApp extends StatelessWidget {
           '/': (context) => const AuthWrapper(),
           '/home': (context) => const HomePage(),
           '/activate-license': (context) => const ActivateLicensePage(),
+          '/register': (context) => const RegisterPage(),
         },
         debugShowCheckedModeBanner: false, // Opcional: Ocultar banner de debug
       ),

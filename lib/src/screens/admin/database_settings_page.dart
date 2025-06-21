@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/database_helper.dart';
 import '../../services/license_service.dart';
 
@@ -389,6 +390,50 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
     }
   }
 
+  // Función para simular el paso de 10 días sin licencia
+  Future<void> _simulateTenDaysPassed() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirmar Simulación de Licencia'),
+          content: const Text(
+            'Esta acción simulará que han pasado más de 10 días sin una licencia válida. En el próximo reinicio de la aplicación, los productos deberían ser eliminados automáticamente.\n\n¿Estás seguro de continuar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Sí, Simular'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+
+    if (!confirm || !mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final elevenDaysAgo = DateTime.now().subtract(const Duration(days: 11)).toIso8601String();
+    
+    // Establecer la fecha de última limpieza a hace 11 días
+    await prefs.setString('last_cleanup_date', elevenDaysAgo);
+    
+    // Asegurarse de que no hay una licencia activa
+    await prefs.remove('app_license');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Simulación activada. Reinicia la app para ver el efecto.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Deshabilitar botones si alguna operación está en curso
@@ -505,7 +550,7 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
               icon: const Icon(Icons.delete_forever, color: Colors.white),
               label: const Text('Borrar TODOS los Proveedores'),
                style: ElevatedButton.styleFrom(
-                backgroundColor: operationInProgress ? null : Colors.red[700],
+                backgroundColor: operationInProgress ? Colors.grey : Colors.red[700],
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
@@ -516,6 +561,28 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
               'Advertencia: Las acciones de borrado no se pueden deshacer.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.red[900], fontWeight: FontWeight.bold),
+            ),
+
+            const Divider(height: 40),
+
+            // --- Sección de Pruebas de Licencia ---
+            Text('Pruebas de Licencia', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.deepOrange)),
+            const SizedBox(height: 10),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.science_outlined, color: Colors.white),
+              label: const Text('Simular Limpieza por Licencia'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: operationInProgress ? Colors.grey : Colors.deepOrange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              onPressed: operationInProgress ? null : _simulateTenDaysPassed,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Forzará la eliminación de productos en el próximo reinicio si la app no tiene una licencia activa.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
             ),
           ],
         ),
