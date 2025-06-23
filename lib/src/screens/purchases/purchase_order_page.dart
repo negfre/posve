@@ -4,6 +4,7 @@ import 'package:intl/intl.dart'; // Para fechas y números
 import '../../models/supplier.dart';
 import '../../models/product.dart';
 import '../../models/inventory_movement.dart';
+import '../../models/expense.dart';
 import '../../services/database_helper.dart';
 import '../../widgets/searchable_list_dialog.dart';
 import '../suppliers/supplier_form_page.dart'; // <-- Importar formulario de proveedor
@@ -344,6 +345,21 @@ class _PurchaseOrderPageState extends State<PurchaseOrderPage> {
         
         // Registrar la compra (esto actualiza el stock)
         await _dbHelper.recordPurchase(movement);
+
+        // === NUEVO: Registrar gasto por cada producto ===
+        final expense = Expense(
+          description: 'Compra de ${item.product.name}',
+          amount: item.purchasePriceUsd * item.quantity,
+          category: 'Compras',
+          expenseDate: DateTime.now(),
+          notes: 'Compra registrada desde orden de compra',
+          receiptNumber: _invoiceController.text.isNotEmpty ? _invoiceController.text : null,
+          supplier: _selectedSupplier?.name,
+          paymentMethod: _paymentMethod,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        await _dbHelper.insertExpense(expense);
       }
     } catch (e) {
       success = false;
