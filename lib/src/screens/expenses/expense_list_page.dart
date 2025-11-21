@@ -14,7 +14,7 @@ class ExpenseListPage extends StatefulWidget {
   State<ExpenseListPage> createState() => _ExpenseListPageState();
 }
 
-class _ExpenseListPageState extends State<ExpenseListPage> {
+class _ExpenseListPageState extends State<ExpenseListPage> with SingleTickerProviderStateMixin {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   late Future<List<Expense>> _expensesFuture;
   final DateFormat _dateFormatter = DateFormat('dd/MM/yyyy');
@@ -23,12 +23,12 @@ class _ExpenseListPageState extends State<ExpenseListPage> {
   @override
   void initState() {
     super.initState();
-    _loadExpenses();
+    _loadTodayExpenses();
   }
 
-  void _loadExpenses() {
+  Future<void> _loadTodayExpenses() async {
     setState(() {
-      _expensesFuture = _dbHelper.getExpenses();
+      _expensesFuture = _dbHelper.getExpensesToday();
     });
   }
 
@@ -64,7 +64,7 @@ class _ExpenseListPageState extends State<ExpenseListPage> {
               backgroundColor: Colors.green,
             ),
           );
-          _loadExpenses();
+          _loadTodayExpenses();
         }
       } catch (e) {
         if (mounted) {
@@ -85,7 +85,9 @@ class _ExpenseListPageState extends State<ExpenseListPage> {
       MaterialPageRoute(
         builder: (context) => ExpenseDetailsPage(expense: expense),
       ),
-    ).then((_) => _loadExpenses());
+    ).then((_) {
+      _loadTodayExpenses();
+    });
   }
 
   @override
@@ -96,15 +98,13 @@ class _ExpenseListPageState extends State<ExpenseListPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadExpenses,
+            onPressed: _loadTodayExpenses,
             tooltip: 'Actualizar lista',
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          _loadExpenses();
-        },
+        onRefresh: _loadTodayExpenses,
         child: FutureBuilder<List<Expense>>(
           future: _expensesFuture,
           builder: (context, snapshot) {
@@ -256,7 +256,9 @@ class _ExpenseListPageState extends State<ExpenseListPage> {
             MaterialPageRoute(
               builder: (context) => const ExpenseFormPage(),
             ),
-          ).then((_) => _loadExpenses());
+          ).then((_) {
+            _loadTodayExpenses();
+          });
         },
         backgroundColor: AppColors.expenseColor,
         child: const Icon(Icons.add, color: Colors.white),

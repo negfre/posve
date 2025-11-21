@@ -56,11 +56,12 @@ dart run test_license.dart
 
 ### ¿Cómo funciona?
 1. **Token de activación**: Generado por la app usando el ID único del dispositivo
-2. **Código de licencia**: Hash SHA-256 del token + clave secreta
+2. **Código de licencia**: Hash SHA-256 del token + clave secreta (últimos 20 caracteres)
 3. **Validación**: La app verifica que el código sea el hash correcto
 
 ### ¿Por qué es seguro?
-- ✅ **Cada dispositivo tiene un token único**
+- ✅ **Cada dispositivo tiene un token único** - Combina múltiples identificadores
+- ✅ **Timestamp de instalación** - Hace única cada instalación
 - ✅ **Solo tú conoces la clave secreta**
 - ✅ **Los códigos son específicos para cada token**
 - ✅ **No se puede generar un código válido sin la clave**
@@ -72,6 +73,7 @@ dart run test_license.dart
 - **Sin licencia activa**: Los productos se eliminan automáticamente cada 10 días
 - **Advertencias diarias**: La app muestra alertas cada día sin licencia
 - **Dispositivo específico**: La licencia solo funciona en el dispositivo donde se generó el token
+- **Reinstalación**: Cada reinstalación requiere nueva licencia
 
 ### Para el Desarrollador:
 - **Guarda la clave secreta**: Si la pierdes, no podrás generar más licencias
@@ -104,6 +106,14 @@ Para cambiar la clave secreta:
 2. **Editar** `license_generator.dart` (línea con `secretKey`)
 3. **Recompilar** la aplicación
 4. **Notificar** a los clientes que necesitarán nueva licencia
+
+## 🔧 Mejoras Implementadas
+
+### Sistema de Identificación Mejorado:
+- **Múltiples identificadores**: Combina ANDROID_ID, modelo, fabricante, versión, fingerprint
+- **Timestamp de instalación**: Hace única cada instalación
+- **20 caracteres**: Códigos de licencia más largos y seguros
+- **Mejor distribución**: Usa los últimos caracteres del hash SHA-256
 
 ---
 

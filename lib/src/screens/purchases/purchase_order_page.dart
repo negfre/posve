@@ -378,7 +378,7 @@ class _PurchaseOrderPageState extends State<PurchaseOrderPage> {
          ScaffoldMessenger.of(context).showSnackBar(
            const SnackBar(content: Text('Compra registrada exitosamente.'), backgroundColor: Colors.green),
          );
-         Navigator.of(context).pop(); // Cerrar pantalla de orden de compra
+         Navigator.of(context).pop(true); // Cambiado para notificar éxito
        } else {
          ScaffoldMessenger.of(context).showSnackBar(
            SnackBar(content: Text('Error al guardar la compra: ${errorMessage ?? 'Error desconocido'}'), backgroundColor: Colors.red),

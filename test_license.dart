@@ -51,8 +51,9 @@ String generateLicenseCode(String activationToken, String secretKey) {
   // Generar hash SHA-256
   final digest = sha256.convert(data);
   
-  // Tomar los primeros 16 caracteres y convertir a mayúsculas
-  return digest.toString().substring(0, 16).toUpperCase();
+  // Tomar los últimos 20 caracteres y convertir a mayúsculas
+  final hashString = digest.toString();
+  return hashString.substring(hashString.length - 20).toUpperCase();
 }
 
 /// Valida un código de licencia
@@ -93,5 +94,6 @@ String _generateLicenseHash(String activationToken) {
   const String secretKey = "MI_CLAVE_SUPER_SECRETA_2024";
   final data = utf8.encode(activationToken + secretKey);
   final digest = sha256.convert(data);
-  return digest.toString().substring(0, 16).toUpperCase();
+  final hashString = digest.toString();
+  return hashString.substring(hashString.length - 20).toUpperCase();
 } 

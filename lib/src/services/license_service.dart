@@ -27,31 +27,68 @@ class LicenseService {
   // Generar ID único del dispositivo de forma persistente
   Future<String> _generateDeviceId() async {
     final DeviceInfoPlugin deviceInfoPlugin = DeviceInfoPlugin();
-    String? uniqueId;
+    String uniqueId = '';
 
     try {
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfoPlugin.androidInfo;
-        uniqueId = androidInfo.id; // Usa el ANDROID_ID
+        
+        // Obtener timestamp de instalación
+        final prefs = await SharedPreferences.getInstance();
+        String? installTimestamp = prefs.getString('install_timestamp');
+        if (installTimestamp == null) {
+          installTimestamp = DateTime.now().millisecondsSinceEpoch.toString();
+          await prefs.setString('install_timestamp', installTimestamp);
+        }
+        
+        // Combinar múltiples identificadores
+        uniqueId = [
+          androidInfo.id,                    // ANDROID_ID
+          androidInfo.model,                 // Modelo del dispositivo
+          androidInfo.manufacturer,          // Fabricante
+          androidInfo.version.sdkInt.toString(), // Versión de Android
+          androidInfo.fingerprint,           // Fingerprint del sistema
+          installTimestamp,                  // Timestamp de instalación
+          Platform.operatingSystemVersion,   // Versión del sistema
+        ].join('_');
+        
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfoPlugin.iosInfo;
-        uniqueId = iosInfo.identifierForVendor; // Persistente para el vendor
+        
+        // Obtener timestamp de instalación
+        final prefs = await SharedPreferences.getInstance();
+        String? installTimestamp = prefs.getString('install_timestamp');
+        if (installTimestamp == null) {
+          installTimestamp = DateTime.now().millisecondsSinceEpoch.toString();
+          await prefs.setString('install_timestamp', installTimestamp);
+        }
+        
+        // Combinar múltiples identificadores
+        uniqueId = [
+          iosInfo.identifierForVendor,       // ID del vendor
+          iosInfo.model,                     // Modelo del dispositivo
+          iosInfo.systemVersion,             // Versión de iOS
+          iosInfo.utsname.machine,           // Arquitectura
+          installTimestamp,                  // Timestamp de instalación
+          Platform.operatingSystemVersion,   // Versión del sistema
+        ].join('_');
       }
     } catch (e) {
       print('Error al obtener el ID del dispositivo: $e');
-      // Fallback a un ID no persistente si todo falla
-      uniqueId = 'fallback_${DateTime.now().millisecondsSinceEpoch}';
+      // Fallback robusto
+      uniqueId = 'fallback_${DateTime.now().millisecondsSinceEpoch}_${Platform.operatingSystemVersion}_${DateTime.now().microsecondsSinceEpoch}';
     }
 
-    // Si por alguna razón el ID es nulo, creamos un fallback
-    if (uniqueId == null || uniqueId.isEmpty) {
-        uniqueId = 'fallback_${DateTime.now().millisecondsSinceEpoch}';
+    // Asegurar que tenemos un ID válido
+    if (uniqueId.isEmpty) {
+      uniqueId = 'fallback_${DateTime.now().millisecondsSinceEpoch}_${DateTime.now().microsecondsSinceEpoch}';
     }
 
-    // Se usa un hash para normalizar el ID y evitar exponer el ID real
+    // Generar hash y tomar los últimos 20 caracteres
     final bytes = utf8.encode(uniqueId);
     final digest = sha256.convert(bytes);
-    return digest.toString().substring(0, 16).toUpperCase();
+    final hashString = digest.toString();
+    return hashString.substring(hashString.length - 20).toUpperCase();
   }
 
   // Obtener o generar ID del dispositivo
@@ -131,7 +168,8 @@ class LicenseService {
   String _generateLicenseHash(String activationToken, String secretKey) {
     final data = utf8.encode(activationToken + secretKey);
     final digest = sha256.convert(data);
-    return digest.toString().substring(0, 16).toUpperCase(); // 16 caracteres en mayúsculas
+    final hashString = digest.toString();
+    return hashString.substring(hashString.length - 20).toUpperCase(); // 20 caracteres en mayúsculas
   }
 
   // Obtener licencia actual

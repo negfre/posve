@@ -486,12 +486,7 @@ class _ProductListPageState extends State<ProductListPage> {
                       );
                       break;
                     case 'buy':
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PurchaseOrderPage(initialProduct: product),
-                        ),
-                      );
+                      _buyProduct(product);
                       break;
                   }
                 },
@@ -544,5 +539,17 @@ class _ProductListPageState extends State<ProductListPage> {
         ),
       ),
     );
+  }
+
+  void _buyProduct(Product product) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PurchaseOrderPage(initialProduct: product),
+      ),
+    );
+    if (result == true) {
+      _loadProducts();
+    }
   }
 } 

@@ -80,8 +80,9 @@ String generateLicenseCode(String activationToken, String secretKey) {
   // Generar hash SHA-256
   final digest = sha256.convert(data);
   
-  // Tomar los primeros 16 caracteres y convertir a mayúsculas
-  return digest.toString().substring(0, 16).toUpperCase();
+  // Tomar los últimos 20 caracteres y convertir a mayúsculas
+  final hashString = digest.toString();
+  return hashString.substring(hashString.length - 20).toUpperCase();
 }
 
 /// Función auxiliar para validar un código de licencia (para pruebas)

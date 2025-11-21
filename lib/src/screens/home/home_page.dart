@@ -25,6 +25,7 @@ import '../admin/user_management_page.dart';
 import '../admin/database_settings_page.dart';
 import '../expenses/expense_list_page.dart';
 import '../expenses/expense_form_page.dart';
+import '../expenses/expense_month_list_page.dart';
 import 'package:posve/src/screens/settings/terms_of_service_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -137,10 +138,14 @@ class _HomePageState extends State<HomePage> {
 
   void _navigateTo(BuildContext context, Widget page) {
     Navigator.push(context, MaterialPageRoute(builder: (_) => page))
-        .then((_) {
-      // Recargar métricas cuando se regrese de páginas que pueden haber modificado ventas
-      if (page.runtimeType.toString().contains('Sales') || 
-          page.runtimeType.toString().contains('Purchase')) {
+        .then((result) {
+      // Recargar métricas cuando se regrese de páginas que pueden haber modificado ventas o compras
+      final pageType = page.runtimeType.toString();
+      if (pageType.contains('Sales') || pageType.contains('Purchase')) {
+        _loadMetrics();
+      }
+      // Si es PurchaseOrderPage y el resultado es true, refrescar métricas
+      if (pageType == 'PurchaseOrderPage' && result == true) {
         _loadMetrics();
       }
     });
@@ -351,7 +356,7 @@ class _HomePageState extends State<HomePage> {
               color: AppColors.expenseColor,
               subtitle: 'Total acumulado',
               isLoading: _isLoadingMetrics,
-              onTap: () => _navigateTo(context, const ExpenseListPage()),
+              onTap: () => _navigateTo(context, const ExpenseMonthListPage()),
             ),
             MetricCard(
               title: 'Gastos Hoy',
