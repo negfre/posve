@@ -5,6 +5,7 @@ import '../../models/supplier.dart'; // Importar Supplier
 import '../../models/category.dart'; // Importar Category
 import '../../services/database_helper.dart';
 import '../../services/trial_service.dart'; // Para verificar el trial
+import '../../services/license_service.dart'; // Para verificar límites de licencia
 import 'package:intl/intl.dart'; // Para formatear números
 import '../../screens/categories/category_form_page.dart'; // Importar form categoría
 import '../../screens/suppliers/supplier_form_page.dart'; // <-- Importar formulario de proveedor
@@ -22,6 +23,7 @@ class _ProductFormPageState extends State<ProductFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _dbHelper = DatabaseHelper();
   final _trialService = TrialService();
+  final _licenseService = LicenseService();
 
   // Controladores para los campos del formulario
   late TextEditingController _nameController;
@@ -247,11 +249,60 @@ class _ProductFormPageState extends State<ProductFormPage> {
     });
 
     try {
-      // Verificar límite de productos en versión trial
+      // Verificar límite de productos (solo al agregar nuevos, no al editar)
       if (!_isEditMode) {
+        // Verificar límite de licencia (máximo 5 productos sin licencia)
+        final canAdd = await _licenseService.canAddProduct();
+        if (!canAdd) {
+          final currentCount = await _licenseService.getCurrentProductCount();
+          final maxLimit = await _licenseService.getMaxProductsLimit();
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text('Límite de Productos Alcanzado'),
+                    ],
+                  ),
+                  content: Text(
+                    'Has alcanzado el límite de $maxLimit productos en el modo de prueba.\n\n'
+                    'Actualmente tienes $currentCount productos.\n\n'
+                    'Para agregar más productos, activa una licencia en Configuración > Activar Licencia.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Entendido'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).pushNamed('/activate-license');
+                      },
+                      child: const Text('Activar Licencia'),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
+          return;
+        }
+        
+        // Verificar límite de productos en versión trial
         final trialStatus = await _trialService.checkTrialStatus();
         if (trialStatus.state == TrialState.expired) {
           if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Período de prueba finalizado. No se pueden añadir nuevos productos.'),

@@ -8,9 +8,11 @@ import '../../models/payment_method.dart'; // Importar PaymentMethod
 import '../../providers/payment_method_provider.dart'; // Importar Provider
 import '../../services/database_helper.dart';
 import '../../widgets/searchable_list_dialog.dart';
+import '../../constants/app_colors.dart';
 // Para añadir nuevo cliente
 import '../../models/sale.dart'; // Necesario para guardar
 import '../../models/sale_item.dart'; // Necesario para guardar
+import '../../widgets/floating_cart.dart'; // Para CartItem
 
 // Clase auxiliar para manejar los items dentro de la orden de venta
 class SalesOrderItem {
@@ -64,10 +66,12 @@ class PaymentEntry {
 
 class SalesOrderPage extends StatefulWidget {
   final Product? initialProduct; // Producto inicial para añadir automáticamente
+  final List<CartItem>? initialCartItems; // Items del carrito para añadir automáticamente
   
   const SalesOrderPage({
     super.key, 
-    this.initialProduct
+    this.initialProduct,
+    this.initialCartItems,
   });
 
   @override
@@ -146,8 +150,12 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
         await Provider.of<PaymentMethodProvider>(context, listen: false).loadPaymentMethods();
       }
       
+      // Si hay items del carrito, añadirlos primero
+      if (widget.initialCartItems != null && widget.initialCartItems!.isNotEmpty && mounted) {
+        _addInitialCartItems();
+      }
       // Si hay un producto inicial, añadirlo a la orden
-      if (widget.initialProduct != null && mounted) {
+      else if (widget.initialProduct != null && mounted) {
         _addInitialProduct();
       }
       
@@ -538,7 +546,6 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
                     },
                   ),
                   TextButton(
-                    child: const Text('Aceptar'),
                     onPressed: availableStock > 0 ? () {
                       final quantity = int.tryParse(quantityController.text);
                       if (quantity != null && quantity > 0 && quantity <= availableStock) {
@@ -552,7 +559,8 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
                           ),
                         );
                       }
-                    } : null, // Deshabilitar si no hay stock
+                    } : null,
+                    child: const Text('Aceptar'), // Deshabilitar si no hay stock
                   ),
                 ],
               );
@@ -851,6 +859,45 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
     }
  }
 
+  // Método para añadir items del carrito a la orden
+  void _addInitialCartItems() {
+    for (var cartItem in widget.initialCartItems!) {
+      // Buscar el producto en la lista completa
+      final productToAdd = _allProducts.firstWhere(
+        (p) => p.id == cartItem.product.id,
+        orElse: () => cartItem.product,
+      );
+      
+      // Verificar stock
+      if (productToAdd.currentStock < cartItem.quantity) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Stock insuficiente para ${productToAdd.name}. Disponible: ${productToAdd.currentStock}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        continue;
+      }
+      
+      // Añadir el producto a la lista de items
+      _addItem(
+        productToAdd, 
+        cartItem.quantity,
+        productToAdd.sellingPriceUsd,
+        productToAdd.sellingPriceUsd * _currentExchangeRate,
+      );
+    }
+    
+    if (widget.initialCartItems!.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${widget.initialCartItems!.length} producto(s) añadido(s) a la venta.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   // Método para añadir el producto inicial a la orden
   void _addInitialProduct() {
     // Buscar el producto en la lista completa para asegurar que tenemos los datos actualizados
@@ -872,7 +919,7 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
       productToAdd, 
       1, // Cantidad inicial 1
       productToAdd.sellingPriceUsd,
-      productToAdd.sellingPriceVes
+      productToAdd.sellingPriceUsd * _currentExchangeRate,
     );
     
     // Mostrar mensaje de confirmación
@@ -899,8 +946,12 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
     final paymentMethodProvider = context.watch<PaymentMethodProvider>();
 
     return Scaffold(
+      backgroundColor: AppColors.saleColor.withOpacity(0.05), // Fondo sutil verde para ventas
       appBar: AppBar(
         title: const Text('Registrar Venta'),
+        backgroundColor: AppColors.saleColor, // AppBar verde para ventas
+        foregroundColor: Colors.white,
+        elevation: 2,
         actions: [
           // Botón para guardar
           Padding(
@@ -927,6 +978,11 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
               Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: AppColors.saleColor.withOpacity(0.2), width: 1),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
@@ -951,6 +1007,11 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
                Card(
                  elevation: 2,
                  margin: const EdgeInsets.only(bottom: 12),
+                 color: Colors.white,
+                 shape: RoundedRectangleBorder(
+                   borderRadius: BorderRadius.circular(12),
+                   side: BorderSide(color: AppColors.saleColor.withOpacity(0.2), width: 1),
+                 ),
                  child: Padding(
                    padding: const EdgeInsets.all(12.0),
                    child: Row(
@@ -990,6 +1051,11 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
               Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: AppColors.saleColor.withOpacity(0.2), width: 1),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
@@ -1056,6 +1122,11 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
               Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: AppColors.saleColor.withOpacity(0.2), width: 1),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -1113,6 +1184,11 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
               Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: AppColors.saleColor.withOpacity(0.2), width: 1),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
@@ -1122,21 +1198,61 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('Métodos de Pago', style: Theme.of(context).textTheme.titleMedium),
-                          paymentMethodProvider.isLoading
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : IconButton(
-                                icon: const Icon(Icons.add_circle_outline, color: Colors.blue),
-                                tooltip: _isTotalCovered() 
-                                  ? 'Monto total cubierto' 
-                                  : 'Añadir método de pago',
-                                onPressed: _isTotalCovered()
-                                  ? null // Desactivar botón si el total está cubierto
-                                  : () => _showAddPaymentDialog(paymentMethodProvider),
-                                color: _isTotalCovered() ? Colors.grey : Colors.blue,
+                          if (_isTotalCovered())
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(12),
                               ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Total cubierto',
+                                    style: TextStyle(
+                                      color: Colors.green.shade700,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
+                      
+                      // Métodos de pago disponibles como chips seleccionables
+                      if (!_isTotalCovered() && !paymentMethodProvider.isLoading)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: paymentMethodProvider.paymentMethods.map((method) {
+                            return FilterChip(
+                              label: Text(method.name),
+                              selected: false,
+                              onSelected: (selected) {
+                                _quickAddPaymentMethod(method, paymentMethodProvider);
+                              },
+                              avatar: const Icon(Icons.payment, size: 18),
+                              selectedColor: AppColors.primaryColor.withOpacity(0.2),
+                              checkmarkColor: AppColors.primaryColor,
+                            );
+                          }).toList(),
+                        ),
+                      
+                      if (paymentMethodProvider.isLoading)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                      
+                      const SizedBox(height: 12),
                       
                       // Lista de pagos registrados
                       if (_paymentEntries.isEmpty)
@@ -1185,7 +1301,7 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
                                     ),
                                   ],
                                 ),
-                                onTap: () => _editPaymentEntry(index, paymentMethodProvider),
+                                onTap: () => _quickEditPaymentEntry(index, paymentMethodProvider),
                               ),
                             );
                           },
@@ -1323,9 +1439,8 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
     return (totalPaid - _totalUsd).abs() < 0.01;
   }
   
-  // Mostrar diálogo para añadir un método de pago
-  Future<void> _showAddPaymentDialog(PaymentMethodProvider provider) async {
-    // Verificar si el total ya está cubierto
+  // Añadir método de pago rápidamente
+  Future<void> _quickAddPaymentMethod(PaymentMethod method, PaymentMethodProvider provider) async {
     if (_isTotalCovered()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1336,17 +1451,9 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
       return;
     }
     
-    if (provider.paymentMethods.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay métodos de pago disponibles'), backgroundColor: Colors.orange)
-      );
-      return;
-    }
-    
-    // Variables para diálogo
-    PaymentMethod? selectedMethod = provider.paymentMethods.first;
-    final amountController = TextEditingController();
-    final referenceController = TextEditingController();
+    // Calcular monto pendiente
+    final totalPaid = _paymentEntries.fold(0.0, (sum, entry) => sum + entry.amountUsd);
+    final remaining = _totalUsd - totalPaid;
     
     // Función para detectar si el método es en USD o Bs
     bool isUsdMethod(PaymentMethod method) {
@@ -1354,323 +1461,256 @@ class _SalesOrderPageState extends State<SalesOrderPage> {
       return name.contains('usd') || name.contains('dólar') || name.contains('dolar');
     }
     
-    // Función para obtener el monto sugerido en la moneda correcta
-    String getSuggestedAmount(PaymentMethod method) {
-      final totalPaid = _paymentEntries.fold(0.0, (sum, entry) => sum + entry.amountUsd);
-      final remaining = _totalUsd - totalPaid;
-      final suggestedAmount = remaining > 0 ? remaining : _totalUsd;
-      
-      if (isUsdMethod(method)) {
-        return suggestedAmount.toStringAsFixed(2);
-      } else {
-        // Convertir a Bs
-        return (suggestedAmount * _currentExchangeRate).toStringAsFixed(2);
-      }
+    // Obtener monto sugerido en la moneda correcta
+    double suggestedAmount = remaining > 0 ? remaining : _totalUsd;
+    if (!isUsdMethod(method)) {
+      suggestedAmount = suggestedAmount * _currentExchangeRate;
     }
     
-    // Inicializar el monto sugerido
-    amountController.text = getSuggestedAmount(selectedMethod);
+    // Mostrar diálogo simple solo para monto
+    final amountController = TextEditingController(text: suggestedAmount.toStringAsFixed(2));
+    final referenceController = TextEditingController();
     
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Añadir Método de Pago'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Método de pago
-                  DropdownButtonFormField<PaymentMethod>(
-                    value: selectedMethod,
-                    decoration: const InputDecoration(
-                      labelText: 'Forma de Pago',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.payment),
-                    ),
-                    items: provider.paymentMethods.map((method) {
-                      return DropdownMenuItem<PaymentMethod>(
-                        value: method,
-                        child: Text(method.name),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedMethod = value;
-                          // Actualizar el monto sugerido cuando cambie el método
-                          amountController.text = getSuggestedAmount(value);
-                        });
-                      }
-                    },
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Pagar con ${method.name}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Mostrar total pendiente
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Campo de monto (se adapta según la moneda)
-                  TextFormField(
-                    controller: amountController,
-                    decoration: InputDecoration(
-                      labelText: isUsdMethod(selectedMethod!) 
-                        ? 'Monto en USD' 
-                        : 'Monto en Bs.',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: Icon(
-                        isUsdMethod(selectedMethod!) 
-                          ? Icons.attach_money 
-                          : Icons.currency_exchange,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Pendiente:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        isUsdMethod(method)
+                            ? _currencyFormatter.format(remaining)
+                            : _currencyFormatterVes.format(remaining * _currentExchangeRate),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
-                      helperText: isUsdMethod(selectedMethod!)
-                        ? 'Total de la venta: ${_currencyFormatter.format(_totalUsd)}'
-                        : 'Total de la venta: ${_currencyFormatterVes.format(_totalVes)}',
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (value) {
-                      // Validar que el monto no exceda el total disponible
-                      final amount = double.tryParse(value);
-                      if (amount != null && selectedMethod != null) {
-                        final totalPaid = _paymentEntries.fold(0.0, (sum, entry) => sum + entry.amountUsd);
-                        final remaining = _totalUsd - totalPaid;
-                        
-                        if (isUsdMethod(selectedMethod!)) {
-                          if (amount > remaining) {
-                            // Mostrar advertencia pero no bloquear
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Monto excede el total pendiente: ${_currencyFormatter.format(remaining)}'),
-                                backgroundColor: Colors.orange,
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        } else {
-                          // Convertir Bs a USD para validar
-                          final amountUsd = amount / _currentExchangeRate;
-                          if (amountUsd > remaining) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Monto excede el total pendiente: ${_currencyFormatterVes.format(remaining * _currentExchangeRate)}'),
-                                backgroundColor: Colors.orange,
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          }
-                        }
-                      }
-                    },
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Campo de referencia
-                  TextFormField(
-                    controller: referenceController,
-                    decoration: const InputDecoration(
-                      labelText: 'Referencia (opcional)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.receipt_long),
-                      hintText: 'Ej: Número transferencia, Banco, etc.',
+                ),
+                const SizedBox(height: 16),
+                
+                // Campo de monto
+                TextFormField(
+                  controller: amountController,
+                  decoration: InputDecoration(
+                    labelText: isUsdMethod(method) ? 'Monto en USD' : 'Monto en Bs.',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: Icon(
+                      isUsdMethod(method) ? Icons.attach_money : Icons.currency_exchange,
                     ),
                   ),
-                ],
-              ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 12),
+                
+                // Campo de referencia (opcional)
+                TextFormField(
+                  controller: referenceController,
+                  decoration: const InputDecoration(
+                    labelText: 'Referencia (opcional)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.receipt_long),
+                    hintText: 'Ej: Número transferencia',
+                  ),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Validar monto
-                  final amount = double.tryParse(amountController.text);
-                  if (amount == null || amount <= 0) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Ingrese un monto válido'), 
-                        backgroundColor: Colors.orange
-                      )
-                    );
-                    return;
-                  }
-                  Navigator.of(context).pop(true);
-                },
-                child: const Text('Añadir'),
-              ),
-            ],
-          );
-        },
-      ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final amount = double.tryParse(amountController.text);
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Ingrese un monto válido'),
+                      backgroundColor: Colors.orange,
+                    )
+                  );
+                  return;
+                }
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Añadir'),
+            ),
+          ],
+        );
+      },
     );
     
-    if (result == true && selectedMethod != null) {
+    if (result == true) {
       final amount = double.tryParse(amountController.text) ?? 0.0;
       
       // Convertir el monto a USD si es necesario
       double amountUsd;
-      if (isUsdMethod(selectedMethod!)) {
+      if (isUsdMethod(method)) {
         amountUsd = amount;
       } else {
-        // Convertir de Bs a USD
         amountUsd = amount / _currentExchangeRate;
       }
       
       setState(() {
         _paymentEntries.add(PaymentEntry(
-          method: selectedMethod!,
+          method: method,
           amountUsd: amountUsd,
           reference: referenceController.text.isNotEmpty ? referenceController.text : null,
         ));
       });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${method.name} añadido'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 1),
+        ),
+      );
     }
   }
-  
-  // Editar un pago existente
-  Future<void> _editPaymentEntry(int index, PaymentMethodProvider provider) async {
+
+  // Editar método de pago rápidamente
+  Future<void> _quickEditPaymentEntry(int index, PaymentMethodProvider provider) async {
     final entry = _paymentEntries[index];
-    PaymentMethod? selectedMethod = entry.method;
-    final amountController = TextEditingController();
-    final referenceController = TextEditingController(
-      text: entry.reference ?? ''
-    );
     
-    // Función para detectar si el método es en USD o Bs
+    // Calcular monto pendiente (sin incluir este pago)
+    final totalPaid = _paymentEntries.fold(0.0, (sum, e) => sum + e.amountUsd) - entry.amountUsd;
+    final remaining = _totalUsd - totalPaid;
+    
     bool isUsdMethod(PaymentMethod method) {
       final name = method.name.toLowerCase();
       return name.contains('usd') || name.contains('dólar') || name.contains('dolar');
     }
     
-    // Función para obtener el monto en la moneda correcta para mostrar
-    String getAmountForDisplay(PaymentMethod method, double amountUsd) {
-      if (isUsdMethod(method)) {
-        return amountUsd.toStringAsFixed(2);
-      } else {
-        // Convertir USD a Bs para mostrar
-        return (amountUsd * _currentExchangeRate).toStringAsFixed(2);
-      }
+    // Obtener monto actual en la moneda correcta
+    double currentAmount = entry.amountUsd;
+    if (!isUsdMethod(entry.method)) {
+      currentAmount = entry.amountUsd * _currentExchangeRate;
     }
     
-    // Inicializar el monto en la moneda correcta
-    amountController.text = getAmountForDisplay(selectedMethod, entry.amountUsd);
+    final amountController = TextEditingController(text: currentAmount.toStringAsFixed(2));
+    final referenceController = TextEditingController(text: entry.reference ?? '');
     
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Editar Método de Pago'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Método de pago
-                  DropdownButtonFormField<PaymentMethod>(
-                    value: selectedMethod,
-                    decoration: const InputDecoration(
-                      labelText: 'Forma de Pago',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.payment),
-                    ),
-                    items: provider.paymentMethods.map((method) {
-                      return DropdownMenuItem<PaymentMethod>(
-                        value: method,
-                        child: Text(method.name),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedMethod = value;
-                          // Actualizar el monto cuando cambie el método
-                          amountController.text = getAmountForDisplay(value, entry.amountUsd);
-                        });
-                      }
-                    },
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Editar ${entry.method.name}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Mostrar total pendiente
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Campo de monto (se adapta según la moneda)
-                  TextFormField(
-                    controller: amountController,
-                    decoration: InputDecoration(
-                      labelText: isUsdMethod(selectedMethod!) 
-                        ? 'Monto en USD' 
-                        : 'Monto en Bs.',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: Icon(
-                        isUsdMethod(selectedMethod!) 
-                          ? Icons.attach_money 
-                          : Icons.currency_exchange,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Pendiente:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        isUsdMethod(entry.method)
+                            ? _currencyFormatter.format(remaining)
+                            : _currencyFormatterVes.format(remaining * _currentExchangeRate),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
-                      helperText: isUsdMethod(selectedMethod!)
-                        ? 'Total de la venta: ${_currencyFormatter.format(_totalUsd)}'
-                        : 'Total de la venta: ${_currencyFormatterVes.format(_totalVes)}',
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Campo de referencia
-                  TextFormField(
-                    controller: referenceController,
-                    decoration: const InputDecoration(
-                      labelText: 'Referencia (opcional)',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.receipt_long),
-                      hintText: 'Ej: Número transferencia, Banco, etc.',
+                ),
+                const SizedBox(height: 16),
+                
+                // Campo de monto
+                TextFormField(
+                  controller: amountController,
+                  decoration: InputDecoration(
+                    labelText: isUsdMethod(entry.method) ? 'Monto en USD' : 'Monto en Bs.',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: Icon(
+                      isUsdMethod(entry.method) ? Icons.attach_money : Icons.currency_exchange,
                     ),
                   ),
-                ],
-              ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 12),
+                
+                // Campo de referencia
+                TextFormField(
+                  controller: referenceController,
+                  decoration: const InputDecoration(
+                    labelText: 'Referencia (opcional)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.receipt_long),
+                  ),
+                ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Validar monto
-                  final amount = double.tryParse(amountController.text);
-                  if (amount == null || amount <= 0) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Ingrese un monto válido'), 
-                        backgroundColor: Colors.orange
-                      )
-                    );
-                    return;
-                  }
-                  Navigator.of(context).pop(true);
-                },
-                child: const Text('Guardar'),
-              ),
-            ],
-          );
-        },
-      ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final amount = double.tryParse(amountController.text);
+                if (amount == null || amount <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Ingrese un monto válido'),
+                      backgroundColor: Colors.orange,
+                    )
+                  );
+                  return;
+                }
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
     );
     
-    if (result == true && selectedMethod != null) {
+    if (result == true) {
       final amount = double.tryParse(amountController.text) ?? 0.0;
       
-      // Convertir el monto a USD si es necesario
       double amountUsd;
-      if (isUsdMethod(selectedMethod!)) {
+      if (isUsdMethod(entry.method)) {
         amountUsd = amount;
       } else {
-        // Convertir de Bs a USD
         amountUsd = amount / _currentExchangeRate;
       }
       
       setState(() {
         _paymentEntries[index] = PaymentEntry(
-          method: selectedMethod!,
+          method: entry.method,
           amountUsd: amountUsd,
           reference: referenceController.text.isNotEmpty ? referenceController.text : null,
         );
       });
     }
   }
+
   
   // Eliminar un método de pago
   void _removePaymentEntry(int index) {

@@ -17,12 +17,11 @@ class LicenseService {
   // Claves para SharedPreferences
   static const String _licenseKey = 'app_license';
   static const String _lastWarningDateKey = 'last_warning_date';
-  static const String _lastCleanupDateKey = 'last_cleanup_date';
   static const String _deviceIdKey = 'device_id';
   
-  // Configuración del sistema de licenciamiento
-  static const int _warningIntervalDays = 1; // Mostrar advertencia cada día
-  static const int _cleanupIntervalDays = 10; // Borrar productos cada 10 días
+  // Configuración del sistema de licenciamiento (Modo de Prueba)
+  static const int _warningIntervalDays = 7; // Mostrar advertencia cada 7 días
+  static const int _maxProductsWithoutLicense = 5; // Máximo de productos sin licencia
 
   // Generar ID único del dispositivo de forma persistente
   Future<String> _generateDeviceId() async {
@@ -244,74 +243,44 @@ class LicenseService {
     }
   }
 
-  // Verificar si debe hacer limpieza de productos
-  Future<bool> shouldCleanupProducts() async {
+  // Verificar si se puede agregar más productos (límite de 5 sin licencia)
+  Future<bool> canAddProduct() async {
     try {
       final isValid = await isLicenseValid();
-      if (isValid) return false; // No hacer limpieza si la licencia es válida
+      if (isValid) return true; // Sin límite con licencia
       
-      final prefs = await SharedPreferences.getInstance();
-      final lastCleanupDate = prefs.getString(_lastCleanupDateKey);
-      
-      if (lastCleanupDate == null) {
-        // Primera vez, hacer limpieza
-        await prefs.setString(_lastCleanupDateKey, DateTime.now().toIso8601String());
-        return true;
-      }
-      
-      final lastCleanup = DateTime.parse(lastCleanupDate);
-      final daysSinceLastCleanup = DateTime.now().difference(lastCleanup).inDays;
-      
-      if (daysSinceLastCleanup >= _cleanupIntervalDays) {
-        // Actualizar fecha de última limpieza
-        await prefs.setString(_lastCleanupDateKey, DateTime.now().toIso8601String());
-        return true;
-      }
-      
-      return false;
+      final products = await _dbHelper.getProducts();
+      return products.length < _maxProductsWithoutLicense;
     } catch (e) {
-      print('Error verificando limpieza: $e');
-      return false;
+      print('Error verificando límite de productos: $e');
+      return false; // En caso de error, no permitir agregar
     }
   }
 
-  // Calcular días restantes antes de la limpieza
-  Future<int> getDaysUntilCleanup() async {
-    final isValid = await isLicenseValid();
-    if (isValid) return _cleanupIntervalDays + 1; // Un número alto para indicar que no hay riesgo
-
-    final prefs = await SharedPreferences.getInstance();
-    final lastCleanupDate = prefs.getString(_lastCleanupDateKey);
-
-    if (lastCleanupDate == null) {
-      // Si nunca se ha hecho limpieza (o no se ha registrado), se considera que el período de gracia empieza ahora.
-      // Guardamos la fecha actual como si fuera la de la "última limpieza" para empezar a contar.
-      await prefs.setString(_lastCleanupDateKey, DateTime.now().toIso8601String());
-      return _cleanupIntervalDays;
-    }
-
-    final lastCleanup = DateTime.parse(lastCleanupDate);
-    final daysSinceLastCleanup = DateTime.now().difference(lastCleanup).inDays;
-    final daysRemaining = _cleanupIntervalDays - daysSinceLastCleanup;
-
-    return daysRemaining < 0 ? 0 : daysRemaining;
-  }
-
-  // Ejecutar limpieza de productos
-  Future<void> cleanupProducts() async {
+  // Obtener el número de productos actuales
+  Future<int> getCurrentProductCount() async {
     try {
-      print('Ejecutando limpieza de productos por falta de licencia...');
-      
-      // Borrar todos los productos
-      await _dbHelper.deleteAllProducts();
-      
-      print('Limpieza de productos completada');
+      final products = await _dbHelper.getProducts();
+      return products.length;
     } catch (e) {
-      print('Error durante limpieza de productos: $e');
+      print('Error obteniendo cantidad de productos: $e');
+      return 0;
     }
   }
 
-  // Mostrar advertencia de licencia
+  // Verificar si se puede exportar reportes (solo con licencia)
+  Future<bool> canExportReports() async {
+    return await isLicenseValid();
+  }
+
+  // Obtener el límite máximo de productos según el estado de la licencia
+  Future<int?> getMaxProductsLimit() async {
+    final isValid = await isLicenseValid();
+    if (isValid) return null; // Sin límite con licencia
+    return _maxProductsWithoutLicense;
+  }
+
+  // Mostrar advertencia de licencia (Modo de Prueba)
   void showLicenseWarning(BuildContext context) {
     showDialog(
       context: context,
@@ -320,32 +289,36 @@ class LicenseService {
         return AlertDialog(
           title: const Row(
             children: [
-              Icon(Icons.warning, color: Colors.orange),
+              Icon(Icons.info_outline, color: Colors.blue),
               SizedBox(width: 8),
-              Text('Licencia Requerida'),
+              Text('Modo de Prueba'),
             ],
           ),
-          content: const Column(
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Para continuar usando todas las funciones de la aplicación, necesitas activar una licencia.',
-                style: TextStyle(fontSize: 16),
+              const Text(
+                'Estás usando la versión de prueba de POSVE.',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 16),
-              Text(
-                '⚠️ ADVERTENCIA:',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text(
+                'Limitaciones del modo de prueba:',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
-                'Si no activas la licencia, todos los productos serán eliminados automáticamente cada 10 días.',
-                style: TextStyle(color: Colors.red),
+                '• Máximo $_maxProductsWithoutLicense productos',
+                style: const TextStyle(fontSize: 14),
               ),
-              SizedBox(height: 16),
-              Text(
-                'Ve a Configuración > Activar Licencia para obtener tu código de activación.',
+              const Text(
+                '• No se pueden exportar reportes',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Para desbloquear todas las funciones, activa una licencia.',
                 style: TextStyle(fontStyle: FontStyle.italic),
               ),
             ],
@@ -353,7 +326,7 @@ class LicenseService {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Entendido'),
+              child: const Text('Continuar'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -361,7 +334,7 @@ class LicenseService {
                 // Navegar a la pantalla de activación
                 Navigator.of(context).pushNamed('/activate-license');
               },
-              child: const Text('Activar Ahora'),
+              child: const Text('Activar Licencia'),
             ),
           ],
         );
@@ -372,12 +345,7 @@ class LicenseService {
   // Verificar estado de licencia al iniciar la app
   Future<void> checkLicenseOnStartup(BuildContext context) async {
     try {
-      // Verificar si debe hacer limpieza
-      if (await shouldCleanupProducts()) {
-        await cleanupProducts();
-      }
-      
-      // Verificar si debe mostrar advertencia
+      // Verificar si debe mostrar advertencia (solo información, no eliminación)
       if (await shouldShowWarning()) {
         showLicenseWarning(context);
       }

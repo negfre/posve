@@ -15,12 +15,10 @@ class AppTheme {
       secondary: AppColors.secondaryColor,
       secondaryContainer: AppColors.secondaryLightColor,
       surface: AppColors.surfaceColor,
-      background: AppColors.backgroundColor,
       error: AppColors.errorColor,
       onPrimary: Colors.white,
       onSecondary: Colors.white,
       onSurface: AppColors.textColor,
-      onBackground: AppColors.textColor,
       onError: Colors.white,
     ),
     

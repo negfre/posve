@@ -162,6 +162,42 @@ class _ActivateLicensePageState extends State<ActivateLicensePage> {
     );
   }
 
+  Widget _buildStep(String number, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                number,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -418,30 +454,210 @@ class _ActivateLicensePageState extends State<ActivateLicensePage> {
                         Icon(Icons.info_outline, color: Colors.blue),
                         const SizedBox(width: 8),
                         Text(
-                          'Información Importante',
+                          '¿Cómo Funciona el Sistema de Licencias?',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
+                    
+                    // Proceso paso a paso
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '📋 Proceso de Activación:',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildStep('1', 'Genera tu token único (botón arriba)'),
+                          _buildStep('2', 'Envía el token al desarrollador'),
+                          _buildStep('3', 'Recibe el código de licencia'),
+                          _buildStep('4', 'Ingresa el código aquí'),
+                          _buildStep('5', '¡Listo! Licencia activada de por vida'),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Características
                     const Text(
-                      '• La licencia es válida solo para este dispositivo específico.',
-                      style: TextStyle(fontSize: 14),
+                      '🔒 Características de Seguridad:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     const SizedBox(height: 8),
+                    const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(fontSize: 14)),
+                        Expanded(
+                          child: Text(
+                            'La licencia está vinculada a este dispositivo específico usando identificadores únicos del hardware',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(fontSize: 14)),
+                        Expanded(
+                          child: Text(
+                            'El sistema usa criptografía SHA-256 para garantizar la seguridad',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(fontSize: 14)),
+                        Expanded(
+                          child: Text(
+                            'No requiere conexión a internet ni servidor externo',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Limitaciones sin licencia
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Modo de Prueba (Sin Licencia):',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            '• Máximo 5 productos',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          const Text(
+                            '• No se pueden exportar reportes a Excel/CSV',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          const Text(
+                            '• Todas las demás funciones están disponibles',
+                            style: TextStyle(fontSize: 13, color: Colors.green),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Con licencia
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.verified, color: Colors.green, size: 20),
+                              SizedBox(width: 8),
+                              Text(
+                                'Con Licencia Activada:',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            '✅ Productos ilimitados',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          const Text(
+                            '✅ Exportación de reportes habilitada',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          const Text(
+                            '✅ Licencia de por vida para este dispositivo',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Información importante
                     const Text(
-                      '• Si cambias de dispositivo, necesitarás una nueva licencia.',
-                      style: TextStyle(fontSize: 14),
+                      '⚠️ Información Importante:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      '• Sin licencia activa, los productos se eliminarán automáticamente cada 10 días.',
-                      style: TextStyle(fontSize: 14, color: Colors.red),
+                    const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(fontSize: 14)),
+                        Expanded(
+                          child: Text(
+                            'La licencia es válida solo para este dispositivo específico',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '• La licencia es de por vida para este dispositivo.',
-                      style: TextStyle(fontSize: 14, color: Colors.green),
+                    const SizedBox(height: 6),
+                    const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(fontSize: 14)),
+                        Expanded(
+                          child: Text(
+                            'Si cambias de dispositivo, necesitarás una nueva licencia',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ', style: TextStyle(fontSize: 14)),
+                        Expanded(
+                          child: Text(
+                            'Los backups NO incluyen licencias por seguridad',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

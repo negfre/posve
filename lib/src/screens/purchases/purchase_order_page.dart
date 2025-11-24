@@ -7,6 +7,7 @@ import '../../models/inventory_movement.dart';
 import '../../models/expense.dart';
 import '../../services/database_helper.dart';
 import '../../widgets/searchable_list_dialog.dart';
+import '../../widgets/floating_cart.dart'; // Para CartItem
 import '../suppliers/supplier_form_page.dart'; // <-- Importar formulario de proveedor
 import '../products/product_form_page.dart'; // <-- Importar formulario de producto
 // Importar cualquier otro widget que necesitemos, como un buscador
@@ -30,10 +31,12 @@ class PurchaseOrderItem {
 
 class PurchaseOrderPage extends StatefulWidget {
   final Product? initialProduct; // Producto inicial para añadir a la compra
+  final List<CartItem>? initialCartItems; // Items del carrito para añadir automáticamente
   
   const PurchaseOrderPage({
     super.key,
-    this.initialProduct
+    this.initialProduct,
+    this.initialCartItems,
   });
 
   @override
@@ -76,9 +79,26 @@ class _PurchaseOrderPageState extends State<PurchaseOrderPage> {
      await _loadProducts(); // Cargar todos los productos al inicio
      await _loadExchangeRate();
      
-     // Si hay un producto inicial, añadirlo
-     if (widget.initialProduct != null && mounted) {
-       _addInitialProduct();
+     // Esperar a que los productos se carguen antes de añadir items del carrito
+     if (mounted) {
+       // Si hay items del carrito, añadirlos después de cargar productos
+       if (widget.initialCartItems != null && widget.initialCartItems!.isNotEmpty) {
+         // Verificar que los productos se hayan cargado
+         if (_allProducts.isNotEmpty) {
+           _addInitialCartItems();
+         } else {
+           // Si aún no están cargados, esperar un frame más
+           WidgetsBinding.instance.addPostFrameCallback((_) {
+             if (mounted && _allProducts.isNotEmpty) {
+               _addInitialCartItems();
+             }
+           });
+         }
+       }
+       // Si hay un producto inicial, añadirlo
+       else if (widget.initialProduct != null) {
+         _addInitialProduct();
+       }
      }
   }
 
@@ -677,6 +697,40 @@ class _PurchaseOrderPageState extends State<PurchaseOrderPage> {
   }
 
   // Método para añadir el producto inicial
+  // Método para añadir items del carrito a la orden
+  void _addInitialCartItems() {
+    print("🛒 Añadiendo ${widget.initialCartItems!.length} item(s) del carrito a la orden de compra");
+    
+    for (var cartItem in widget.initialCartItems!) {
+      // Buscar el producto en la lista completa
+      final productToAdd = _allProducts.firstWhere(
+        (p) => p.id == cartItem.product.id,
+        orElse: () {
+          print("⚠️ Producto ${cartItem.product.id} no encontrado en _allProducts, usando producto del carrito");
+          return cartItem.product;
+        },
+      );
+      
+      print("✅ Añadiendo producto: ${productToAdd.name}, Cantidad: ${cartItem.quantity}, Precio: ${productToAdd.purchasePriceUsd}");
+      
+      // Añadir el producto con la cantidad del carrito y precio de compra
+      _addOrUpdateOrderItem(
+        productToAdd,
+        cartItem.quantity,
+        productToAdd.purchasePriceUsd,
+      );
+    }
+    
+    if (widget.initialCartItems!.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${widget.initialCartItems!.length} producto(s) añadido(s) a la compra.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   void _addInitialProduct() {
     // Buscar el producto en la lista completa para obtener datos actualizados
     final productToAdd = _allProducts.firstWhere(

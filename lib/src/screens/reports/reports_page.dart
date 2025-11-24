@@ -6,10 +6,10 @@ import 'dart:io';
 import 'package:excel/excel.dart';
 
 import '../../services/database_helper.dart';
+import '../../services/license_service.dart';
 import '../../models/sale.dart';
 import '../../models/expense.dart';
 import '../../models/product.dart';
-import '../../constants/app_colors.dart';
 
 class ReportsPage extends StatefulWidget {
   const ReportsPage({super.key});
@@ -20,6 +20,7 @@ class ReportsPage extends StatefulWidget {
 
 class _ReportsPageState extends State<ReportsPage> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
+  final LicenseService _licenseService = LicenseService();
   
   DateTime _startDate = DateTime.now().subtract(const Duration(days: 30));
   DateTime _endDate = DateTime.now();
@@ -27,6 +28,7 @@ class _ReportsPageState extends State<ReportsPage> {
   
   bool _isLoading = false;
   dynamic _reportData;
+  bool _canExport = true;
 
   Future<void> _selectDateRange(BuildContext context) async {
     final DateTimeRange? picked = await showDateRangePicker(
@@ -73,6 +75,19 @@ class _ReportsPageState extends State<ReportsPage> {
     setState(() {
       _reportData = data;
       _isLoading = false;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkExportPermission();
+  }
+
+  Future<void> _checkExportPermission() async {
+    final canExport = await _licenseService.canExportReports();
+    setState(() {
+      _canExport = canExport;
     });
   }
 
@@ -184,6 +199,12 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Future<void> _exportToExcel() async {
+    // Verificar permiso de exportación
+    if (!_canExport) {
+      _showExportRestrictedDialog();
+      return;
+    }
+
     if (_reportData == null || _reportData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No hay datos para exportar')),
@@ -235,6 +256,12 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Future<void> _exportToCsv() async {
+    // Verificar permiso de exportación
+    if (!_canExport) {
+      _showExportRestrictedDialog();
+      return;
+    }
+
     if (_reportData == null || _reportData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No hay datos para exportar')),
@@ -251,7 +278,7 @@ class _ReportsPageState extends State<ReportsPage> {
       headers = ['Producto', 'Stock Actual', 'Precio de Venta (USD)'];
     }
     
-    String csvData = headers.join(',') + '\n';
+    String csvData = '${headers.join(',')}\n';
 
     for (var item in _reportData) {
       List<String> row = [];
@@ -262,7 +289,7 @@ class _ReportsPageState extends State<ReportsPage> {
       } else if (item is Product) {
         row = ['"${item.name}"', item.currentStock.toString(), item.sellingPriceUsd.toString()];
       }
-      csvData += row.join(',') + '\n';
+      csvData += '${row.join(',')}\n';
     }
 
     final directory = await getTemporaryDirectory();
@@ -284,16 +311,20 @@ class _ReportsPageState extends State<ReportsPage> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             ElevatedButton.icon(
-              icon: const Icon(Icons.grid_on),
-              label: const Text('Exportar a CSV'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-              onPressed: _exportToCsv,
+              icon: Icon(_canExport ? Icons.grid_on : Icons.lock),
+              label: Text(_canExport ? 'Exportar a CSV' : 'CSV (Bloqueado)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _canExport ? Colors.teal : Colors.grey,
+              ),
+              onPressed: _canExport ? _exportToCsv : _showExportRestrictedDialog,
             ),
             ElevatedButton.icon(
-              icon: const Icon(Icons.table_chart),
-              label: const Text('Exportar a Excel'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              onPressed: _exportToExcel,
+              icon: Icon(_canExport ? Icons.table_chart : Icons.lock),
+              label: Text(_canExport ? 'Exportar a Excel' : 'Excel (Bloqueado)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _canExport ? Colors.green : Colors.grey,
+              ),
+              onPressed: _canExport ? _exportToExcel : _showExportRestrictedDialog,
             ),
           ],
         ),
@@ -337,5 +368,40 @@ class _ReportsPageState extends State<ReportsPage> {
       return Text('Stock: ${item.currentStock} - Precio: ${currencyFormat.format(item.sellingPriceUsd)}');
     }
     return const Text('');
+  }
+
+  void _showExportRestrictedDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.lock_outline, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Exportación Restringida'),
+            ],
+          ),
+          content: const Text(
+            'La exportación de reportes está disponible solo con una licencia activa.\n\n'
+            'En el modo de prueba puedes generar y visualizar reportes, pero no exportarlos.\n\n'
+            'Para exportar reportes, activa una licencia en Configuración > Activar Licencia.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Entendido'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushNamed('/activate-license');
+              },
+              child: const Text('Activar Licencia'),
+            ),
+          ],
+        );
+      },
+    );
   }
 } 

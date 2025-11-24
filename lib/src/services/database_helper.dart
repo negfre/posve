@@ -1028,7 +1028,9 @@ class DatabaseHelper {
 
     await db.transaction((txn) async {
       // 1. Insertar el movimiento
-      await txn.insert('inventory_movements', movement.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+      final movementMap = movement.toMap();
+      movementMap.remove('id'); // Remover ID para que sea auto-generado
+      final movementId = await txn.insert('inventory_movements', movementMap, conflictAlgorithm: ConflictAlgorithm.replace);
       
       // 2. Actualizar el stock del producto
       final newStock = currentStock + movement.quantity;
@@ -1041,6 +1043,8 @@ class DatabaseHelper {
         where: 'id = ?',
         whereArgs: [movement.productId],
       );
+      
+      print("✅ Movimiento de entrada creado - ID: $movementId, Producto ID: ${movement.productId}, Cantidad: ${movement.quantity}, Tipo: ${movement.type}, Fecha: ${movement.movementDate}");
     });
     print("Compra registrada y stock actualizado para producto ID: ${movement.productId}");
   }
@@ -1092,6 +1096,11 @@ class DatabaseHelper {
       LEFT JOIN products p ON m.product_id = p.id
       ORDER BY m.movement_date DESC
     ''');
+
+    print("📊 Total de movimientos encontrados: ${maps.length}");
+    for (var map in maps) {
+      print("  - ID: ${map['id']}, Tipo: ${map['type']}, Producto: ${map['product_name']}, Cantidad: ${map['quantity']}, Fecha: ${map['movement_date']}");
+    }
 
     if (maps.isEmpty) {
       return []; // Devuelve lista vacía si no hay movimientos
@@ -1383,10 +1392,23 @@ class DatabaseHelper {
           where: 'id = ?',
           whereArgs: [item.productId],
         );
+
+        // 3. Crear movimiento de inventario para la venta
+        final movement = InventoryMovement(
+          productId: item.productId,
+          type: 'sale',
+          quantity: item.quantity,
+          movementDate: sale.saleDate,
+          unitPriceUsd: item.unitPriceUsd,
+          unitPriceVes: item.unitPriceVes,
+          exchangeRate: currentExchangeRate,
+          supplierId: null, // Las ventas no tienen proveedor
+        );
+        await txn.insert('inventory_movements', movement.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
       }
     });
 
-    print("Venta completa registrada con ID: $saleId y stock actualizado.");
+    print("Venta completa registrada con ID: $saleId, stock actualizado y movimientos de inventario creados.");
     return saleId;
   }
 
@@ -1466,7 +1488,6 @@ class DatabaseHelper {
     // Crear lista de SaleItem que incluye información del producto
     return List.generate(maps.length, (i) {
       final map = maps[i];
-      final now = DateTime.now();
       
       // Crear objeto Product con los datos básicos obtenidos del JOIN
       final product = Product(
@@ -2573,9 +2594,11 @@ class DatabaseHelper {
 
   // Importar datos completos
   Future<void> importData(Map<String, dynamic> importData) async {
+    print("🗄️ [IMPORT] Iniciando importación de datos...");
     final db = await database;
 
     await db.transaction((txn) async {
+      print("🗄️ [IMPORT] Transacción iniciada");
       // 1. Definir el orden correcto de borrado (de hijos a padres)
       final tablesToDelete = [
         'sale_items', 
@@ -2594,17 +2617,21 @@ class DatabaseHelper {
       ];
 
       // 2. Limpiar las tablas en el orden definido
+      print("🗄️ [IMPORT] Limpiando tablas existentes...");
       for (final table in tablesToDelete) {
         try {
-          await txn.delete(table);
+          final deleted = await txn.delete(table);
+          print("🗄️ [IMPORT] Tabla '$table' limpiada: $deleted registros eliminados");
         } catch (e) {
           if (e is DatabaseException && e.toString().contains('no such table')) {
-            print("Tabla $table no existe, se omite borrado.");
+            print("⚠️ [IMPORT] Tabla $table no existe, se omite borrado.");
           } else {
+            print("❌ [IMPORT] Error limpiando tabla $table: $e");
             rethrow; // Lanzar otros errores
           }
         }
       }
+      print("✅ [IMPORT] Limpieza de tablas completada");
 
       // 3. Definir el orden correcto de inserción (de padres a hijos)
       final tablesToInsert = {
@@ -2624,25 +2651,122 @@ class DatabaseHelper {
       };
       
       // 4. Insertar los datos en el orden definido
+      print("🗄️ [IMPORT] Insertando datos en tablas...");
       for (final tableEntry in tablesToInsert.entries) {
         final tableName = tableEntry.key;
         final dataKey = tableEntry.value;
 
+        print("🗄️ [IMPORT] Procesando tabla: $tableName (clave JSON: $dataKey)");
+        
         if (importData[dataKey] != null && importData[dataKey] is List) {
-          for (final item in importData[dataKey]) {
+          final items = importData[dataKey] as List;
+          print("🗄️ [IMPORT] Encontrados ${items.length} items para tabla $tableName");
+          
+          int successCount = 0;
+          int errorCount = 0;
+          
+          for (int i = 0; i < items.length; i++) {
+            final item = items[i];
             try {
-              await txn.insert(tableName, item as Map<String, dynamic>, conflictAlgorithm: ConflictAlgorithm.replace);
-            } catch (e) {
-              print("Error insertando en tabla $tableName: $e. Item: $item");
+              print("🗄️ [IMPORT] Procesando item ${i + 1}/${items.length} de tabla $tableName");
+              
+              // Limpiar y normalizar los datos antes de insertar
+              final cleanedItem = _cleanImportItem(item as Map<String, dynamic>);
+              print("🗄️ [IMPORT] Item limpiado: ${cleanedItem.keys.toList()}");
+              
+              await txn.insert(tableName, cleanedItem, conflictAlgorithm: ConflictAlgorithm.replace);
+              successCount++;
+              
+              if ((i + 1) % 10 == 0) {
+                print("🗄️ [IMPORT] Progreso tabla $tableName: ${i + 1}/${items.length} items procesados");
+              }
+            } catch (e, stackTrace) {
+              errorCount++;
+              print("❌ [IMPORT] Error insertando item ${i + 1} en tabla $tableName:");
+              print("   Error: $e");
+              print("   Tipo: ${e.runtimeType}");
+              print("   Item: $item");
+              print("   Stack: $stackTrace");
+              
               if (e is DatabaseException && e.toString().contains('no such table')) {
-                print("Tabla $tableName no existe, se omite inserción.");
+                print("❌ [IMPORT] Tabla $tableName no existe, deteniendo inserción.");
                 break; 
+              } else if (e is FormatException) {
+                print("❌ [IMPORT] Error de formato en item ${i + 1}, continuando...");
+                continue;
+              } else {
+                // Continuar con el siguiente item en lugar de romper todo
+                print("⚠️ [IMPORT] Error con item específico, continuando...");
+                continue;
               }
             }
           }
+          
+          print("✅ [IMPORT] Tabla $tableName: $successCount exitosos, $errorCount errores");
+        } else {
+          print("⚠️ [IMPORT] No se encontraron datos para tabla $tableName (clave: $dataKey)");
         }
       }
+      print("✅ [IMPORT] Inserción de datos completada");
     });
+  }
+
+  // Limpiar y normalizar datos de importación
+  Map<String, dynamic> _cleanImportItem(Map<String, dynamic> item) {
+    final cleaned = Map<String, dynamic>.from(item);
+    
+    // Remover ID si existe (se generará automáticamente)
+    cleaned.remove('id');
+    
+    // Normalizar fechas a formato ISO8601
+    final dateFields = ['created_at', 'updated_at', 'sale_date', 'expense_date', 'movement_date', 'date'];
+    for (final field in dateFields) {
+      if (cleaned.containsKey(field) && cleaned[field] != null) {
+        try {
+          // Si ya es string ISO8601, validarlo
+          if (cleaned[field] is String) {
+            DateTime.parse(cleaned[field] as String); // Validar formato
+          } else if (cleaned[field] is int) {
+            // Si es timestamp, convertirlo
+            cleaned[field] = DateTime.fromMillisecondsSinceEpoch(cleaned[field] as int).toIso8601String();
+          }
+        } catch (e) {
+          // Si hay error, usar fecha actual
+          print("Error normalizando fecha $field: $e, usando fecha actual");
+          cleaned[field] = DateTime.now().toIso8601String();
+        }
+      }
+    }
+    
+    // Asegurar que valores numéricos sean del tipo correcto
+    final numericFields = ['quantity', 'current_stock', 'min_stock', 'cost_price_usd', 'purchase_price_usd', 
+                          'selling_price_usd', 'selling_price_ves', 'unit_price_usd', 'unit_price_ves',
+                          'subtotal_usd', 'subtotal_ves', 'total', 'subtotal', 'tax_amount', 'tax_rate',
+                          'amount', 'exchange_rate', 'rate', 'vat_percentage'];
+    for (final field in numericFields) {
+      if (cleaned.containsKey(field) && cleaned[field] != null) {
+        if (cleaned[field] is String) {
+          cleaned[field] = double.tryParse(cleaned[field] as String) ?? 0.0;
+        } else if (cleaned[field] is int) {
+          cleaned[field] = (cleaned[field] as int).toDouble();
+        }
+      }
+    }
+    
+    // Asegurar que valores enteros sean del tipo correcto
+    final intFields = ['quantity', 'current_stock', 'min_stock', 'product_id', 'category_id', 'supplier_id',
+                       'client_id', 'sale_id', 'payment_method_id'];
+    for (final field in intFields) {
+      if (cleaned.containsKey(field) && cleaned[field] != null) {
+        if (cleaned[field] is String) {
+          cleaned[field] = int.tryParse(cleaned[field] as String) ?? 0;
+        } else if (cleaned[field] is double) {
+          cleaned[field] = (cleaned[field] as double).toInt();
+        }
+      }
+    }
+    
+    return cleaned;
   }
 
   // ===== MÉTODOS DE EXPORTACIÓN =====

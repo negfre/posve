@@ -125,49 +125,139 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
 
   // Función para exportar toda la base de datos
   Future<void> _exportDatabase() async {
+    print("📤 Iniciando proceso de exportación...");
     setState(() => _isExporting = true);
     
     try {
+      print("📊 Obteniendo datos de la base de datos...");
+      
       // Obtener todos los datos de la base de datos
+      print("  - Obteniendo productos...");
+      final products = await _dbHelper.getAllProductsForExport();
+      print("    ✅ Productos: ${products.length} registros");
+      
+      print("  - Obteniendo categorías...");
+      final categories = await _dbHelper.getAllCategoriesForExport();
+      print("    ✅ Categorías: ${categories.length} registros");
+      
+      print("  - Obteniendo proveedores...");
+      final suppliers = await _dbHelper.getAllSuppliersForExport();
+      print("    ✅ Proveedores: ${suppliers.length} registros");
+      
+      print("  - Obteniendo clientes...");
+      final clients = await _dbHelper.getAllClientsForExport();
+      print("    ✅ Clientes: ${clients.length} registros");
+      
+      print("  - Obteniendo ventas...");
+      final sales = await _dbHelper.getAllSalesForExport();
+      print("    ✅ Ventas: ${sales.length} registros");
+      
+      print("  - Obteniendo items de venta...");
+      final saleItems = await _dbHelper.getAllSaleItemsForExport();
+      print("    ✅ Items de venta: ${saleItems.length} registros");
+      
+      print("  - Obteniendo compras...");
+      final purchases = await _dbHelper.getAllPurchasesForExport();
+      print("    ✅ Compras: ${purchases.length} registros");
+      
+      print("  - Obteniendo movimientos...");
+      final movements = await _dbHelper.getAllMovementsForExport();
+      print("    ✅ Movimientos: ${movements.length} registros");
+      
+      print("  - Obteniendo gastos...");
+      final expenses = await _dbHelper.getAllExpensesForExport();
+      print("    ✅ Gastos: ${expenses.length} registros");
+      
+      print("  - Obteniendo categorías de gastos...");
+      final expenseCategories = await _dbHelper.getAllExpenseCategoriesForExport();
+      print("    ✅ Categorías de gastos: ${expenseCategories.length} registros");
+      
+      print("  - Obteniendo métodos de pago...");
+      final paymentMethods = await _dbHelper.getAllPaymentMethodsForExport();
+      print("    ✅ Métodos de pago: ${paymentMethods.length} registros");
+      
+      print("  - Obteniendo usuarios...");
+      final users = await _dbHelper.getAllUsersForExport();
+      print("    ✅ Usuarios: ${users.length} registros");
+      
+      print("  - Obteniendo configuraciones...");
+      final settings = await _dbHelper.getAllSettingsForExport();
+      print("    ✅ Configuraciones: ${settings.length} registros");
+      
+      print("📦 Construyendo objeto de exportación...");
       final exportData = {
         'timestamp': DateTime.now().toIso8601String(),
         'version': '1.0.0',
-        'products': await _dbHelper.getAllProductsForExport(),
-        'categories': await _dbHelper.getAllCategoriesForExport(),
-        'suppliers': await _dbHelper.getAllSuppliersForExport(),
-        'clients': await _dbHelper.getAllClientsForExport(),
-        'sales': await _dbHelper.getAllSalesForExport(),
-        'sale_items': await _dbHelper.getAllSaleItemsForExport(),
-        'purchases': await _dbHelper.getAllPurchasesForExport(),
-        'movements': await _dbHelper.getAllMovementsForExport(),
-        'expenses': await _dbHelper.getAllExpensesForExport(),
-        'expense_categories': await _dbHelper.getAllExpenseCategoriesForExport(),
-        'paymentMethods': await _dbHelper.getAllPaymentMethodsForExport(),
-        'users': await _dbHelper.getAllUsersForExport(),
-        'settings': await _dbHelper.getAllSettingsForExport(),
+        'products': products,
+        'categories': categories,
+        'suppliers': suppliers,
+        'clients': clients,
+        'sales': sales,
+        'sale_items': saleItems,
+        'purchases': purchases,
+        'movements': movements,
+        'expenses': expenses,
+        'expense_categories': expenseCategories,
+        'paymentMethods': paymentMethods,
+        'users': users,
+        'settings': settings,
       };
+      
+      print("📋 Claves en exportData: ${exportData.keys.toList()}");
+      print("📊 Total de registros: ${products.length + categories.length + suppliers.length + clients.length + sales.length + saleItems.length + purchases.length + movements.length + expenses.length + expenseCategories.length + paymentMethods.length + users.length + settings.length}");
 
       // Convertir a JSON
+      print("🔄 Convirtiendo a JSON...");
       final jsonData = json.encode(exportData);
+      print("✅ JSON generado: ${jsonData.length} caracteres");
+      
+      if (jsonData.isEmpty) {
+        throw Exception('El JSON generado está vacío. Verifica los datos de exportación.');
+      }
+      
+      // Mostrar vista previa
+      final preview = jsonData.length > 200 ? jsonData.substring(0, 200) : jsonData;
+      print("📄 Vista previa del JSON (primeros 200 caracteres): $preview...");
       
       // Obtener directorio temporal
+      print("📁 Obteniendo directorio temporal...");
       final directory = await getTemporaryDirectory();
+      print("✅ Directorio: ${directory.path}");
+      
       final fileName = 'posve_backup_${DateTime.now().millisecondsSinceEpoch}.json';
       final file = File('${directory.path}/$fileName');
+      print("📝 Archivo a crear: ${file.path}");
       
       // Escribir archivo temporal
+      print("💾 Escribiendo archivo...");
       await file.writeAsString(jsonData);
+      
+      // Verificar que se escribió correctamente
+      final fileSize = await file.length();
+      print("✅ Archivo escrito: $fileSize bytes");
+      
+      if (fileSize == 0) {
+        throw Exception('El archivo se escribió pero está vacío. Error al escribir datos.');
+      }
+      
+      print("✅ Exportación completada exitosamente");
       
       // Mostrar diálogo con opciones
       if (mounted) {
         _showExportOptionsDialog(file, fileName);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print("❌ ERROR DURANTE EXPORTACIÓN:");
+      print("   Tipo de error: ${e.runtimeType}");
+      print("   Mensaje: ${e.toString()}");
+      print("   Stack trace: $stackTrace");
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al exportar: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -175,11 +265,15 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
       if (mounted) {
         setState(() => _isExporting = false);
       }
+      print("🏁 Proceso de exportación finalizado");
     }
   }
 
   // Mostrar diálogo con opciones de exportación
-  void _showExportOptionsDialog(File file, String fileName) {
+  void _showExportOptionsDialog(File file, String fileName) async {
+    // Verificar estado de licencia
+    final isValid = await _licenseService.isLicenseValid();
+    
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -191,33 +285,99 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
               Text('Backup Exportado'),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('El backup se ha creado exitosamente.'),
-              const SizedBox(height: 16),
-              Text('Archivo: $fileName'),
-              const SizedBox(height: 16),
-              const Text('¿Qué deseas hacer con el archivo?'),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'El backup se ha creado exitosamente.',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isValid ? Icons.verified : Icons.info_outline,
+                            color: isValid ? Colors.green : Colors.orange,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            isValid ? 'Licencia Activa' : 'Modo de Prueba',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isValid ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (!isValid) ...[
+                        const Text(
+                          '📋 Información sobre Licencias:',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          '• El backup incluye todos tus datos (productos, ventas, compras, etc.)',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          '• Las licencias NO se exportan por seguridad',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          '• Al importar en otro dispositivo, necesitarás activar una nueva licencia',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '💡 Para desbloquear todas las funciones (exportar reportes, productos ilimitados), activa una licencia en Configuración > Activar Licencia',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ] else ...[
+                        const Text(
+                          '✅ Tienes una licencia activa. Todas las funciones están desbloqueadas.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Archivo: $fileName',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Puedes compartirlo o guardarlo usando el botón de abajo.',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _promptAndSaveToDevice(file, fileName);
-              },
-              icon: const Icon(Icons.save),
-              label: const Text('Guardar en Dispositivo'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
+              child: const Text('Cerrar'),
             ),
             ElevatedButton.icon(
               onPressed: () {
@@ -225,82 +385,78 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
                 _shareFile(file);
               },
               icon: const Icon(Icons.share),
-              label: const Text('Compartir'),
+              label: const Text('Compartir/Guardar'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
               ),
             ),
+            if (!isValid)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushNamed('/activate-license');
+                },
+                icon: const Icon(Icons.vpn_key, size: 18),
+                label: const Text('Activar Licencia'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.green,
+                ),
+              ),
           ],
         );
       },
     );
   }
 
-  // Guardar archivo en el dispositivo
-  Future<void> _promptAndSaveToDevice(File sourceFile, String fileName) async {
-    try {
-      // Pedir al usuario que elija una ubicación para guardar
-      String? outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Por favor, selecciona dónde guardar el backup',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-
-      if (outputPath == null) {
-        // User canceled the picker
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Guardado cancelado por el usuario.')),
-          );
-        }
-        return;
-      }
-
-      // Copiar el archivo temporal a la ubicación elegida
-      final destinationFile = File(outputPath);
-      await sourceFile.copy(destinationFile.path);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Backup guardado exitosamente!'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: 'Compartir',
-              onPressed: () => _shareFile(destinationFile),
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al guardar archivo: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // Compartir archivo
+  // Compartir archivo (también permite guardar)
   Future<void> _shareFile(File file) async {
     try {
+      print("📤 Iniciando compartir/guardar archivo...");
+      print("📁 Archivo: ${file.path}");
+      
+      // Verificar que el archivo existe
+      if (!await file.exists()) {
+        throw Exception('El archivo no existe: ${file.path}');
+      }
+      
+      final fileSize = await file.length();
+      print("📏 Tamaño del archivo: $fileSize bytes");
+      
+      if (fileSize == 0) {
+        throw Exception('El archivo está vacío');
+      }
+      
+      print("📤 Compartiendo archivo...");
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: 'Backup de POSVE - ${DateTime.now().toString().substring(0, 19)}',
+        text: 'Backup de POSVE - ${DateTime.now().toString().substring(0, 19)}\n\nPuedes guardar este archivo en tu dispositivo o compartirlo.',
         subject: 'Backup POSVE',
       );
-    } catch (e) {
+      
+      print("✅ Archivo compartido exitosamente");
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Archivo compartido. Puedes guardarlo desde el menú de compartir.'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      print("❌ ERROR al compartir archivo:");
+      print("   Error: $e");
+      print("   Tipo: ${e.runtimeType}");
+      print("   Stack: $stackTrace");
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al compartir: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -310,6 +466,8 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
   // Función para importar base de datos
   Future<void> _importDatabase() async {
     try {
+      print("📥 Iniciando proceso de importación...");
+      
       // Seleccionar archivo
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -317,19 +475,100 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
         allowMultiple: false,
       );
 
-      if (result == null) return;
+      if (result == null) {
+        print("❌ Usuario canceló la selección de archivo");
+        return;
+      }
 
+      print("✅ Archivo seleccionado: ${result.files.single.path}");
       setState(() => _isImporting = true);
 
       // Leer archivo
       final file = File(result.files.single.path!);
+      print("📖 Leyendo archivo desde: ${file.path}");
+      
+      // Verificar que el archivo existe
+      if (!await file.exists()) {
+        print("❌ ERROR: El archivo no existe");
+        throw Exception('El archivo seleccionado no existe o no se puede acceder');
+      }
+      
+      // Verificar tamaño del archivo
+      final fileSize = await file.length();
+      print("📄 Tamaño del archivo: $fileSize bytes");
+      
+      if (fileSize == 0) {
+        print("❌ ERROR: El archivo está vacío (0 bytes)");
+        throw Exception('El archivo seleccionado está vacío. Por favor, selecciona un archivo válido de backup de POSVE.');
+      }
+      
+      print("📖 Leyendo contenido del archivo...");
       final jsonString = await file.readAsString();
-      final importData = json.decode(jsonString) as Map<String, dynamic>;
+      print("📄 Contenido leído: ${jsonString.length} caracteres");
+      
+      if (jsonString.isEmpty || jsonString.trim().isEmpty) {
+        print("❌ ERROR: El contenido del archivo está vacío después de leer");
+        throw Exception('El archivo está vacío o no se pudo leer correctamente.');
+      }
+      
+      // Mostrar primeros caracteres para debugging
+      final preview = jsonString.length > 100 ? jsonString.substring(0, 100) : jsonString;
+      print("📄 Vista previa del contenido (primeros 100 caracteres): $preview...");
+      
+      print("🔍 Decodificando JSON...");
+      Map<String, dynamic> importData;
+      try {
+        importData = json.decode(jsonString) as Map<String, dynamic>;
+      } catch (e) {
+        print("❌ ERROR al decodificar JSON: $e");
+        print("📄 Contenido completo del archivo: $jsonString");
+        rethrow;
+      }
+      
+      print("✅ JSON decodificado exitosamente");
+      print("📋 Claves encontradas en JSON: ${importData.keys.toList()}");
 
       // Verificar que sea un archivo válido de POSVE
-      if (!importData.containsKey('version') || !importData.containsKey('products')) {
-        throw Exception('Archivo no válido de POSVE');
+      print("🔎 Validando estructura del archivo...");
+      print("📋 Claves encontradas: ${importData.keys.toList()}");
+      
+      // Claves esperadas en un archivo POSVE
+      final expectedKeys = ['version', 'products', 'categories', 'suppliers', 'clients', 
+                           'sales', 'sale_items', 'movements', 'expenses', 'paymentMethods'];
+      final foundKeys = importData.keys.toList();
+      
+      // Verificar claves mínimas requeridas
+      if (!importData.containsKey('version')) {
+        print("❌ ERROR: El archivo no contiene la clave 'version'");
+        throw Exception('Archivo no válido de POSVE: falta la clave "version"');
       }
+      if (!importData.containsKey('products')) {
+        print("❌ ERROR: El archivo no contiene la clave 'products'");
+        throw Exception('Archivo no válido de POSVE: falta la clave "products"');
+      }
+      
+      // Detectar si es un archivo de otra aplicación
+      final suspiciousKeys = ['follows', 'posts', 'comments', 'likes', 'followers', 'following'];
+      final hasSuspiciousKeys = foundKeys.any((key) => suspiciousKeys.contains(key));
+      
+      if (hasSuspiciousKeys) {
+        print("❌ ERROR: El archivo parece ser de otra aplicación");
+        print("   Claves sospechosas encontradas: ${foundKeys.where((k) => suspiciousKeys.contains(k)).toList()}");
+        throw Exception('Este archivo no es de POSVE. Parece ser de otra aplicación.\n\n'
+                       'POSVE espera: products, categories, suppliers, sales, etc.\n'
+                       'Este archivo tiene: ${foundKeys.where((k) => suspiciousKeys.contains(k)).join(", ")}');
+      }
+      
+      // Verificar que tenga al menos algunas claves esperadas de POSVE
+      final hasPosveKeys = foundKeys.any((key) => expectedKeys.contains(key));
+      if (!hasPosveKeys) {
+        print("❌ ERROR: El archivo no tiene claves reconocidas de POSVE");
+        throw Exception('Este archivo no parece ser de POSVE.\n\n'
+                       'Claves esperadas: ${expectedKeys.join(", ")}\n'
+                       'Claves encontradas: ${foundKeys.join(", ")}');
+      }
+      
+      print("✅ Estructura del archivo válida para POSVE");
 
       // Mostrar diálogo de confirmación
       final confirm = await showDialog<bool>(
@@ -364,7 +603,9 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
       }
 
       // Importar datos (excluyendo licencias)
+      print("💾 Iniciando importación de datos...");
       await _dbHelper.importData(importData);
+      print("✅ Importación completada exitosamente");
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -374,12 +615,18 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print("❌ ERROR DURANTE IMPORTACIÓN:");
+      print("   Tipo de error: ${e.runtimeType}");
+      print("   Mensaje: ${e.toString()}");
+      print("   Stack trace: $stackTrace");
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al importar: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -387,6 +634,7 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
       if (mounted) {
         setState(() => _isImporting = false);
       }
+      print("🏁 Proceso de importación finalizado");
     }
   }
 
@@ -407,8 +655,8 @@ class _DatabaseSettingsPageState extends State<DatabaseSettingsPage> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Sí, Simular'),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
+              child: const Text('Sí, Simular'),
             ),
           ],
         );

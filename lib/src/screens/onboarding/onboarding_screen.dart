@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:posve/src/screens/settings/terms_of_service_page.dart';
 import '../../services/database_helper.dart';
 import '../../models/product.dart';

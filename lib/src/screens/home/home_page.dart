@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/database_helper.dart';
-import '../../services/license_service.dart';
 import '../../widgets/modern_widgets.dart';
 import '../../constants/app_colors.dart';
 import 'package:intl/intl.dart';
@@ -38,12 +37,10 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final DatabaseHelper _dbHelper = DatabaseHelper();
   final AuthProvider authProvider = AuthProvider();
-  final LicenseService _licenseService = LicenseService();
   
   // Estado para métricas
   Map<String, dynamic> _metrics = {};
   bool _isLoadingMetrics = true;
-  int? _daysUntilCleanup;
   
   // Formateadores
   final NumberFormat _currencyFormatter = NumberFormat.currency(locale: 'en_US', symbol: '\$');
@@ -53,17 +50,6 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadMetrics();
-    _checkLicenseStatus();
-  }
-
-  Future<void> _checkLicenseStatus() async {
-    final isValid = await _licenseService.isLicenseValid();
-    if (!isValid) {
-      final days = await _licenseService.getDaysUntilCleanup();
-      setState(() {
-        _daysUntilCleanup = days;
-      });
-    }
   }
 
   Future<void> _loadMetrics() async {
@@ -93,6 +79,9 @@ class _HomePageState extends State<HomePage> {
       double todayExpensesTotal = 0;
       double monthExpensesTotal = 0;
       int lowStockCount = 0;
+      int outOfStockCount = 0;
+      double totalInventoryValueUsd = 0;
+      double totalInventoryValueVes = 0;
 
       for (var sale in todaySales) {
         todayTotal += sale.total;
@@ -110,10 +99,19 @@ class _HomePageState extends State<HomePage> {
         monthExpensesTotal += expense.amount;
       }
 
+      // Calcular métricas de inventario
       for (var product in products) {
-        if (product.currentStock <= product.minStock) {
+        // Contar productos con stock bajo
+        if (product.currentStock <= product.minStock && product.currentStock > 0) {
           lowStockCount++;
         }
+        // Contar productos sin stock
+        if (product.currentStock == 0) {
+          outOfStockCount++;
+        }
+        // Calcular valor total del inventario (usando precio de costo)
+        totalInventoryValueUsd += product.costPriceUsd * product.currentStock;
+        totalInventoryValueVes += (product.costPriceUsd * exchangeRate) * product.currentStock;
       }
 
       setState(() {
@@ -123,6 +121,9 @@ class _HomePageState extends State<HomePage> {
           'monthTotal': monthTotal,
           'totalProducts': products.length,
           'lowStockCount': lowStockCount,
+          'outOfStockCount': outOfStockCount,
+          'totalInventoryValueUsd': totalInventoryValueUsd,
+          'totalInventoryValueVes': totalInventoryValueVes,
           'exchangeRate': exchangeRate,
           'todayExpenses': todayExpenses.length,
           'todayExpensesTotal': todayExpensesTotal,
@@ -155,7 +156,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('POSVE - Dashboard'),
+        title: const Text('POSVE - Gestión de Inventario'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -175,12 +176,6 @@ class _HomePageState extends State<HomePage> {
             children: [
               // Header con saludo
               _buildWelcomeHeader(),
-              const SizedBox(height: 16),
-              
-              // Banner de advertencia de licencia
-              if (_daysUntilCleanup != null && _daysUntilCleanup! <= 10)
-                _buildLicenseWarningBanner(),
-              
               const SizedBox(height: 24),
               
               // Métricas principales
@@ -255,7 +250,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Bienvenido a tu sistema de gestión',
+                  'Controla tu inventario de forma eficiente',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.9),
                     fontSize: 16,
@@ -269,57 +264,68 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildLicenseWarningBanner() {
-    final days = _daysUntilCleanup!;
-    final message = days > 0
-        ? 'Los productos se eliminarán en $days día${days == 1 ? '' : 's'}.'
-        : 'Los productos podrían ser eliminados en cualquier momento.';
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade300),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.warning, color: Colors.orange, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Atención: Licencia no activa',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14),
-                ),
-                const SizedBox(height: 2),
-                Text(message, style: const TextStyle(color: Colors.black87, fontSize: 12)),
-              ],
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => _navigateTo(context, const ActivateLicensePage()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              textStyle: const TextStyle(fontSize: 12),
-            ),
-            child: const Text('Activar'),
-          )
-        ],
-      ),
-    );
-  }
 
   Widget _buildMetricsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionHeader(
-          title: 'Métricas del Día',
+          title: 'Métricas de Inventario',
+          icon: Icons.inventory_2,
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.1,
+          children: [
+            MetricCard(
+              title: 'Total Productos',
+              value: _isLoadingMetrics ? '...' : '${_metrics['totalProducts'] ?? 0}',
+              icon: Icons.inventory_2,
+              color: AppColors.primaryColor,
+              subtitle: 'En inventario',
+              isLoading: _isLoadingMetrics,
+              onTap: () => _navigateTo(context, const ProductListPage()),
+            ),
+            MetricCard(
+              title: 'Stock Bajo',
+              value: _isLoadingMetrics ? '...' : '${_metrics['lowStockCount'] ?? 0}',
+              icon: Icons.warning_amber_rounded,
+              color: AppColors.warningColor,
+              subtitle: 'Requieren atención',
+              isLoading: _isLoadingMetrics,
+              onTap: () {
+                // Navegar a productos con filtro de stock bajo
+                _navigateTo(context, const ProductListPage());
+              },
+            ),
+            MetricCard(
+              title: 'Sin Stock',
+              value: _isLoadingMetrics ? '...' : '${_metrics['outOfStockCount'] ?? 0}',
+              icon: Icons.error_outline,
+              color: AppColors.errorColor,
+              subtitle: 'Agotados',
+              isLoading: _isLoadingMetrics,
+              onTap: () => _navigateTo(context, const ProductListPage()),
+            ),
+            MetricCard(
+              title: 'Valor Inventario',
+              value: _isLoadingMetrics ? '...' : _currencyFormatter.format(_metrics['totalInventoryValueUsd'] ?? 0),
+              icon: Icons.attach_money,
+              color: AppColors.accentColor,
+              subtitle: _currencyFormatterVes.format(_metrics['totalInventoryValueVes'] ?? 0),
+              isLoading: _isLoadingMetrics,
+              onTap: () => _navigateTo(context, const ProductListPage()),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const SectionHeader(
+          title: 'Métricas de Operaciones',
           icon: Icons.analytics,
         ),
         const SizedBox(height: 16),
@@ -332,20 +338,11 @@ class _HomePageState extends State<HomePage> {
           childAspectRatio: 1.1,
           children: [
             MetricCard(
-              title: 'Ventas Hoy',
-              value: _isLoadingMetrics ? '...' : '${_metrics['todaySales'] ?? 0}',
-              icon: Icons.point_of_sale,
-              color: AppColors.saleColor,
-              subtitle: _currencyFormatter.format(_metrics['todayTotal'] ?? 0),
-              isLoading: _isLoadingMetrics,
-              onTap: () => _navigateTo(context, const SalesListPage(filterPeriod: 'today')),
-            ),
-            MetricCard(
               title: 'Ventas del Mes',
               value: _isLoadingMetrics ? '...' : _currencyFormatter.format(_metrics['monthTotal'] ?? 0),
               icon: Icons.trending_up,
-              color: AppColors.secondaryColor,
-              subtitle: 'Total acumulado',
+              color: AppColors.saleColor,
+              subtitle: '${_metrics['todaySales'] ?? 0} hoy',
               isLoading: _isLoadingMetrics,
               onTap: () => _navigateTo(context, const SalesListPage(filterPeriod: 'month')),
             ),
@@ -354,36 +351,27 @@ class _HomePageState extends State<HomePage> {
               value: _isLoadingMetrics ? '...' : _currencyFormatter.format(_metrics['monthExpensesTotal'] ?? 0),
               icon: Icons.trending_down,
               color: AppColors.expenseColor,
-              subtitle: 'Total acumulado',
+              subtitle: '${_metrics['todayExpenses'] ?? 0} hoy',
               isLoading: _isLoadingMetrics,
               onTap: () => _navigateTo(context, const ExpenseMonthListPage()),
-            ),
-            MetricCard(
-              title: 'Gastos Hoy',
-              value: _isLoadingMetrics ? '...' : '${_metrics['todayExpenses'] ?? 0}',
-              icon: Icons.receipt_long,
-              color: AppColors.expenseColor,
-              subtitle: _currencyFormatter.format(_metrics['todayExpensesTotal'] ?? 0),
-              isLoading: _isLoadingMetrics,
-              onTap: () => _navigateTo(context, const ExpenseListPage()),
-            ),
-            MetricCard(
-              title: 'Productos',
-              value: _isLoadingMetrics ? '...' : '${_metrics['totalProducts'] ?? 0}',
-              icon: Icons.inventory_2,
-              color: AppColors.primaryColor,
-              subtitle: '${_metrics['lowStockCount'] ?? 0} con stock bajo',
-              isLoading: _isLoadingMetrics,
-              onTap: () => _navigateTo(context, const ProductListPage()),
             ),
             MetricCard(
               title: 'Tasa de Cambio',
               value: _isLoadingMetrics ? '...' : '${_metrics['exchangeRate']?.toStringAsFixed(2) ?? '0.00'}',
               icon: Icons.currency_exchange,
-              color: AppColors.accentColor,
+              color: AppColors.secondaryColor,
               subtitle: 'USD → VES',
               isLoading: _isLoadingMetrics,
               onTap: () => _navigateTo(context, const ExchangeRatePage()),
+            ),
+            MetricCard(
+              title: 'Movimientos',
+              value: _isLoadingMetrics ? '...' : 'Ver',
+              icon: Icons.sync_alt,
+              color: AppColors.accentColor,
+              subtitle: 'Historial completo',
+              isLoading: _isLoadingMetrics,
+              onTap: () => _navigateTo(context, const MovementListPage()),
             ),
           ],
         ),
@@ -406,6 +394,30 @@ class _HomePageState extends State<HomePage> {
             scrollDirection: Axis.horizontal,
             children: [
               ActionCard(
+                title: 'Gestionar Inventario',
+                icon: Icons.inventory_2,
+                color: AppColors.primaryColor,
+                onTap: () => _navigateTo(context, const ProductListPage()),
+              ),
+              ActionCard(
+                title: 'Agregar Producto',
+                icon: Icons.add_box,
+                color: AppColors.primaryColor,
+                onTap: () => _navigateTo(context, const ProductListPage()),
+              ),
+              ActionCard(
+                title: 'Ver Movimientos',
+                icon: Icons.sync_alt,
+                color: AppColors.accentColor,
+                onTap: () => _navigateTo(context, const MovementListPage()),
+              ),
+              ActionCard(
+                title: 'Compras - Entradas',
+                icon: Icons.shopping_cart_checkout,
+                color: AppColors.purchaseColor,
+                onTap: () => _navigateTo(context, const PurchaseOrderPage()),
+              ),
+              ActionCard(
                 title: 'Nueva Venta',
                 icon: Icons.point_of_sale,
                 color: AppColors.saleColor,
@@ -418,34 +430,10 @@ class _HomePageState extends State<HomePage> {
                 onTap: () => _navigateTo(context, const ExpenseFormPage()),
               ),
               ActionCard(
-                title: 'Registrar Compra',
-                icon: Icons.shopping_cart_checkout,
-                color: AppColors.purchaseColor,
-                onTap: () => _navigateTo(context, const PurchaseOrderPage()),
-              ),
-              ActionCard(
                 title: 'Reportes',
                 icon: Icons.bar_chart,
-                color: AppColors.accentColor,
-                onTap: () => _navigateTo(context, const ReportsPage()),
-              ),
-              ActionCard(
-                title: 'Ver Ventas',
-                icon: Icons.receipt_long,
                 color: AppColors.secondaryColor,
-                onTap: () => _navigateTo(context, const SalesListPage()),
-              ),
-              ActionCard(
-                title: 'Ver Gastos',
-                icon: Icons.account_balance_wallet,
-                color: AppColors.expenseColor,
-                onTap: () => _navigateTo(context, const ExpenseListPage()),
-              ),
-              ActionCard(
-                title: 'Productos',
-                icon: Icons.inventory_2,
-                color: AppColors.primaryColor,
-                onTap: () => _navigateTo(context, const ProductListPage()),
+                onTap: () => _navigateTo(context, const ReportsPage()),
               ),
             ],
           ),
@@ -459,36 +447,18 @@ class _HomePageState extends State<HomePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionHeader(
-          title: 'Gestión del Negocio',
-          icon: Icons.business,
+          title: 'Inventario',
+          icon: Icons.inventory_2,
         ),
         const SizedBox(height: 16),
         Card(
           child: Column(
             children: [
               _buildActionTile(
-                icon: Icons.bar_chart_outlined,
-                title: 'Reportes',
-                subtitle: 'Generar y exportar reportes',
-                onTap: () => _navigateTo(context, const ReportsPage()),
-              ),
-              _buildActionTile(
                 icon: Icons.inventory_2_outlined,
                 title: 'Productos',
-                subtitle: 'Gestionar inventario',
+                subtitle: 'Gestionar inventario completo',
                 onTap: () => _navigateTo(context, const ProductListPage()),
-              ),
-              _buildActionTile(
-                icon: Icons.people_outline,
-                title: 'Proveedores',
-                subtitle: 'Gestionar proveedores',
-                onTap: () => _navigateTo(context, const SupplierListPage()),
-              ),
-              _buildActionTile(
-                icon: Icons.person_outline,
-                title: 'Clientes',
-                subtitle: 'Gestionar clientes',
-                onTap: () => _navigateTo(context, const ClientListPage()),
               ),
               _buildActionTile(
                 icon: Icons.category_outlined,
@@ -499,8 +469,59 @@ class _HomePageState extends State<HomePage> {
               _buildActionTile(
                 icon: Icons.sync_alt_outlined,
                 title: 'Movimientos',
-                subtitle: 'Historial de stock',
+                subtitle: 'Historial de entradas y salidas',
                 onTap: () => _navigateTo(context, const MovementListPage()),
+              ),
+              _buildActionTile(
+                icon: Icons.people_outline,
+                title: 'Proveedores',
+                subtitle: 'Gestionar proveedores',
+                onTap: () => _navigateTo(context, const SupplierListPage()),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        
+        const SectionHeader(
+          title: 'Operaciones',
+          icon: Icons.point_of_sale,
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Column(
+            children: [
+              _buildActionTile(
+                icon: Icons.point_of_sale_outlined,
+                title: 'Ventas',
+                subtitle: 'Registrar y consultar ventas',
+                iconColor: AppColors.saleColor,
+                onTap: () => _navigateTo(context, const SalesListPage()),
+              ),
+              _buildActionTile(
+                icon: Icons.shopping_cart_outlined,
+                title: 'Compras - Entradas',
+                subtitle: 'Registrar compras y entradas de inventario',
+                iconColor: AppColors.purchaseColor,
+                onTap: () => _navigateTo(context, const PurchaseOrderPage()),
+              ),
+              _buildActionTile(
+                icon: Icons.receipt_long_outlined,
+                title: 'Gastos',
+                subtitle: 'Gestionar gastos operativos',
+                onTap: () => _navigateTo(context, const ExpenseListPage()),
+              ),
+              _buildActionTile(
+                icon: Icons.person_outline,
+                title: 'Clientes',
+                subtitle: 'Gestionar clientes',
+                onTap: () => _navigateTo(context, const ClientListPage()),
+              ),
+              _buildActionTile(
+                icon: Icons.bar_chart_outlined,
+                title: 'Reportes',
+                subtitle: 'Generar y exportar reportes',
+                onTap: () => _navigateTo(context, const ReportsPage()),
               ),
             ],
           ),
@@ -576,15 +597,17 @@ class _HomePageState extends State<HomePage> {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    Color? iconColor,
   }) {
+    final color = iconColor ?? AppColors.primaryColor;
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.primaryColor.withOpacity(0.1),
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: AppColors.primaryColor),
+        child: Icon(icon, color: color),
       ),
       title: Text(title),
       subtitle: Text(subtitle),
@@ -645,26 +668,14 @@ class _HomePageState extends State<HomePage> {
             },
           ),
           const Divider(),
-          ListTile(
-            leading: const Icon(Icons.bar_chart),
-            title: const Text('Reportes'),
-            onTap: () => _navigateTo(context, const ReportsPage()),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text('Inventario', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
           ),
-          const Divider(),
           ListTile(
             leading: const Icon(Icons.inventory_2_outlined),
             title: const Text('Productos'),
             onTap: () => _navigateTo(context, const ProductListPage()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.people_outline),
-            title: const Text('Proveedores'),
-            onTap: () => _navigateTo(context, const SupplierListPage()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: const Text('Clientes'),
-            onTap: () => _navigateTo(context, const ClientListPage()),
           ),
           ListTile(
             leading: const Icon(Icons.category_outlined),
@@ -675,6 +686,41 @@ class _HomePageState extends State<HomePage> {
             leading: const Icon(Icons.sync_alt_outlined),
             title: const Text('Movimientos'),
             onTap: () => _navigateTo(context, const MovementListPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.people_outline),
+            title: const Text('Proveedores'),
+            onTap: () => _navigateTo(context, const SupplierListPage()),
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text('Operaciones', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.point_of_sale_outlined),
+            title: const Text('Ventas'),
+            onTap: () => _navigateTo(context, const SalesListPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.shopping_cart_outlined),
+            title: const Text('Compras - Entradas'),
+            onTap: () => _navigateTo(context, const PurchaseOrderPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.receipt_long_outlined),
+            title: const Text('Gastos'),
+            onTap: () => _navigateTo(context, const ExpenseListPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text('Clientes'),
+            onTap: () => _navigateTo(context, const ClientListPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.bar_chart),
+            title: const Text('Reportes'),
+            onTap: () => _navigateTo(context, const ReportsPage()),
           ),
           const Divider(),
           const Padding(

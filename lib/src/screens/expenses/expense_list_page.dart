@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../../models/expense.dart';
 import '../../services/database_helper.dart';
 import '../../constants/app_colors.dart';
-import '../../widgets/modern_widgets.dart';
 import 'expense_form_page.dart';
 import 'expense_details_page.dart';
 

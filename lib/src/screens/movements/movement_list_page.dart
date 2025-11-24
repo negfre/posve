@@ -173,8 +173,8 @@ class _MovementListPageState extends State<MovementListPage> {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Text(
-                        '${isPurchase ? 'Compra' : 'Venta'} | ${_dateTimeFormatter.format(movement.movementDate)}\n'
-                        'Cant: ${movement.quantity} | Precio U: ${_currencyFormatter.format(movement.unitPriceUsd)}\'',
+                        '${isPurchase ? 'Entrada' : 'Venta'} | ${_dateTimeFormatter.format(movement.movementDate)}\n'
+                        'Cant: ${movement.quantity} | Precio U: ${_currencyFormatter.format(movement.unitPriceUsd)}',
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
